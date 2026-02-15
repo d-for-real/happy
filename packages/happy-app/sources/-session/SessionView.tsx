@@ -16,6 +16,7 @@ import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSession
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
 import { sync } from '@/sync/sync';
+import { MESSAGE_IMAGE_MAX_BYTES, MESSAGE_IMAGE_MAX_COUNT, MESSAGE_IMAGE_MAX_DIMENSION, MESSAGE_IMAGE_TOTAL_MAX_BYTES, UserImageAttachment, estimateBase64Bytes } from '@/sync/messageAttachments';
 import { t } from '@/text';
 import { tracking, trackMessageSent } from '@/track';
 import { isRunningOnMac } from '@/utils/platform';
@@ -24,6 +25,9 @@ import { formatPathRelativeToHome, getSessionAvatarId, getSessionName, useSessio
 import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { randomUUID } from 'expo-crypto';
+import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
+import * as ImagePicker from 'expo-image-picker';
 import * as React from 'react';
 import { useMemo } from 'react';
 import { ActivityIndicator, Platform, Pressable, Text, View } from 'react-native';
@@ -156,6 +160,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const isLandscape = useIsLandscape();
     const deviceType = useDeviceType();
     const [message, setMessage] = React.useState('');
+    const [attachments, setAttachments] = React.useState<UserImageAttachment[]>([]);
     const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
     const acknowledgedCliVersions = useLocalSetting('acknowledgedCliVersions');
@@ -178,6 +183,101 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
 
     // Use draft hook for auto-saving message drafts
     const { clearDraft } = useDraft(sessionId, message, setMessage);
+
+    const handleAttachmentPick = React.useCallback(async () => {
+        if (attachments.length >= MESSAGE_IMAGE_MAX_COUNT) {
+            Modal.alert(t('common.error'), `You can attach up to ${MESSAGE_IMAGE_MAX_COUNT} images per message.`);
+            return;
+        }
+
+        try {
+            const picked = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                allowsEditing: false,
+                allowsMultipleSelection: true,
+                quality: 0.85,
+                exif: false,
+                selectionLimit: MESSAGE_IMAGE_MAX_COUNT - attachments.length,
+            });
+
+            if (picked.canceled || picked.assets.length === 0) {
+                return;
+            }
+
+            const next = [...attachments];
+            let totalBytes = next.reduce((sum, item) => sum + (item.sizeBytes || estimateBase64Bytes(item.data)), 0);
+
+            for (const asset of picked.assets) {
+                if (next.length >= MESSAGE_IMAGE_MAX_COUNT) {
+                    break;
+                }
+
+                const width = asset.width || 0;
+                const height = asset.height || 0;
+                let targetWidth = width;
+                let targetHeight = height;
+
+                if (width > MESSAGE_IMAGE_MAX_DIMENSION || height > MESSAGE_IMAGE_MAX_DIMENSION) {
+                    if (width >= height) {
+                        targetWidth = MESSAGE_IMAGE_MAX_DIMENSION;
+                        targetHeight = Math.max(1, Math.round((height * MESSAGE_IMAGE_MAX_DIMENSION) / Math.max(1, width)));
+                    } else {
+                        targetHeight = MESSAGE_IMAGE_MAX_DIMENSION;
+                        targetWidth = Math.max(1, Math.round((width * MESSAGE_IMAGE_MAX_DIMENSION) / Math.max(1, height)));
+                    }
+                }
+
+                const actions = (targetWidth !== width || targetHeight !== height)
+                    ? [{ resize: { width: targetWidth, height: targetHeight } }]
+                    : [];
+
+                const processed = await manipulateAsync(
+                    asset.uri,
+                    actions,
+                    {
+                        compress: 0.82,
+                        format: SaveFormat.JPEG,
+                        base64: true,
+                    }
+                );
+
+                if (!processed.base64) {
+                    continue;
+                }
+
+                const sizeBytes = estimateBase64Bytes(processed.base64);
+                if (sizeBytes > MESSAGE_IMAGE_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Each image must be under ${Math.round(MESSAGE_IMAGE_MAX_BYTES / (1024 * 1024))}MB.`);
+                    continue;
+                }
+
+                if (totalBytes + sizeBytes > MESSAGE_IMAGE_TOTAL_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Total attachments must be under ${Math.round(MESSAGE_IMAGE_TOTAL_MAX_BYTES / (1024 * 1024))}MB.`);
+                    break;
+                }
+
+                next.push({
+                    id: randomUUID(),
+                    mimeType: 'image/jpeg',
+                    data: processed.base64,
+                    width: processed.width,
+                    height: processed.height,
+                    name: asset.fileName || undefined,
+                    sizeBytes,
+                });
+                totalBytes += sizeBytes;
+            }
+
+            setAttachments(next);
+        } catch (error) {
+            console.error('Failed to pick image attachments:', error);
+            Modal.alert(t('common.error'), 'Failed to attach image.');
+        }
+    }, [attachments]);
+
+    const handleAttachmentRemove = React.useCallback((id: string) => {
+        setAttachments((previous) => previous.filter((item) => item.id !== id));
+    }, []);
 
     // Handle dismissing CLI version warning
     const handleDismissCliWarning = React.useCallback(() => {
@@ -290,13 +390,17 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 isPulsing: sessionStatus.isPulsing
             }}
             onSend={() => {
-                if (message.trim()) {
+                if (message.trim() || attachments.length > 0) {
                     setMessage('');
                     clearDraft();
-                    sync.sendMessage(sessionId, message);
+                    sync.sendMessage(sessionId, message, { attachments });
+                    setAttachments([]);
                     trackMessageSent();
                 }
             }}
+            attachments={attachments}
+            onAttachmentPick={handleAttachmentPick}
+            onAttachmentRemove={handleAttachmentRemove}
             onMicPress={micButtonState.onMicPress}
             isMicActive={micButtonState.isMicActive}
             onAbort={() => sessionAbort(sessionId)}

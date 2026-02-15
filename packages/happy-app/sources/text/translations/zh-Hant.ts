@@ -422,9 +422,9 @@ export const zhHant: TranslationStructure = {
         },
         codexModel: {
             title: 'CODEX 模型',
-            gpt5CodexLow: 'gpt-5-codex low',
-            gpt5CodexMedium: 'gpt-5-codex medium',
-            gpt5CodexHigh: 'gpt-5-codex high',
+            gpt5CodexLow: 'gpt-5.3-codex low',
+            gpt5CodexMedium: 'gpt-5.3-codex medium',
+            gpt5CodexHigh: 'gpt-5.3-codex high',
             gpt5Minimal: 'GPT-5 極簡',
             gpt5Low: 'GPT-5 低',
             gpt5Medium: 'GPT-5 中',

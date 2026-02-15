@@ -39,6 +39,7 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { initializeTodoSync } from '../-zen/model/ops';
+import { UserImageAttachment } from './messageAttachments';
 
 class Sync {
     // Spawned agents (especially in spawn mode) can take noticeable time to connect.
@@ -207,7 +208,7 @@ class Sync {
     }
 
 
-    async sendMessage(sessionId: string, text: string, displayText?: string) {
+    async sendMessage(sessionId: string, text: string, options?: { displayText?: string; attachments?: UserImageAttachment[] }) {
 
         // Get encryption
         const encryption = this.encryption.getSessionEncryption(sessionId);
@@ -259,12 +260,17 @@ class Sync {
         }
         const fallbackModel: string | null = null;
 
+        const attachments = options?.attachments && options.attachments.length > 0
+            ? options.attachments
+            : undefined;
+
         // Create user message content with metadata
         const content: RawRecord = {
             role: 'user',
             content: {
                 type: 'text',
-                text
+                text,
+                ...(attachments && { attachments })
             },
             meta: {
                 sentFrom,
@@ -272,7 +278,7 @@ class Sync {
                 model,
                 fallbackModel,
                 appendSystemPrompt: systemPrompt,
-                ...(displayText && { displayText }) // Add displayText if provided
+                ...(options?.displayText && { displayText: options.displayText }) // Add displayText if provided
             }
         };
         const encryptedRawRecord = await encryption.encryptRawRecord(content);

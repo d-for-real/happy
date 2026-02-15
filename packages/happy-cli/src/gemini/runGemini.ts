@@ -30,6 +30,7 @@ import { stopCaffeinate } from '@/utils/caffeinate';
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import type { ApiSessionClient } from '@/api/apiSession';
+import { appendImageAttachmentsAsMarkdown } from '@/api/userAttachments';
 
 import { createGeminiBackend } from '@/agent/factories/gemini';
 import type { AgentBackend, AgentMessage } from '@/agent';
@@ -261,14 +262,15 @@ export async function runGemini(opts: {
     // Build the full prompt with appendSystemPrompt if provided
     // Only include system prompt for the first message to avoid forcing tool usage on every message
     const originalUserMessage = message.content.text;
-    let fullPrompt = originalUserMessage;
+    const messageWithAttachments = appendImageAttachmentsAsMarkdown(originalUserMessage, message.content.attachments);
+    let fullPrompt = messageWithAttachments;
     if (isFirstMessage && message.meta?.appendSystemPrompt) {
       // Prepend system prompt to user message only for first message
       // Also add change_title instruction (like Codex does)
       // Use EXACT same format as Codex: add instruction AFTER user message
       // This matches Codex's approach exactly - instruction comes after user message
       // Codex format: system prompt + user message + change_title instruction
-      fullPrompt = message.meta.appendSystemPrompt + '\n\n' + originalUserMessage + '\n\n' + CHANGE_TITLE_INSTRUCTION;
+      fullPrompt = message.meta.appendSystemPrompt + '\n\n' + messageWithAttachments + '\n\n' + CHANGE_TITLE_INSTRUCTION;
       isFirstMessage = false;
     }
 
@@ -1324,4 +1326,3 @@ export async function runGemini(opts: {
     logger.debug('[gemini]: Final cleanup completed');
   }
 }
-

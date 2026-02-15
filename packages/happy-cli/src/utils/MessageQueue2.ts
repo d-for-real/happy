@@ -69,6 +69,39 @@ export class MessageQueue2<T> {
     }
 
     /**
+     * Push a message that must be processed in isolation from neighboring messages.
+     * Unlike pushIsolateAndClear, this does not discard already queued messages.
+     */
+    pushIsolate(message: string, mode: T): void {
+        if (this.closed) {
+            throw new Error('Cannot push to closed queue');
+        }
+
+        const modeHash = this.modeHasher(mode);
+        logger.debug(`[MessageQueue2] pushIsolate() called with mode hash: ${modeHash}`);
+
+        this.queue.push({
+            message,
+            mode,
+            modeHash,
+            isolate: true
+        });
+
+        if (this.onMessageHandler) {
+            this.onMessageHandler(message, mode);
+        }
+
+        if (this.waiter) {
+            logger.debug(`[MessageQueue2] Notifying waiter for isolated message`);
+            const waiter = this.waiter;
+            this.waiter = null;
+            waiter(true);
+        }
+
+        logger.debug(`[MessageQueue2] pushIsolate() completed. Queue size: ${this.queue.length}`);
+    }
+
+    /**
      * Push a message immediately without batching delay.
      * Does not clear the queue or enforce isolation.
      */

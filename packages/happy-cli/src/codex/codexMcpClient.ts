@@ -10,8 +10,143 @@ import { z } from 'zod';
 import { ElicitRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { CodexPermissionHandler } from './utils/permissionHandler';
 import { execSync } from 'child_process';
+import { randomUUID } from 'node:crypto';
 
 const DEFAULT_TIMEOUT = 14 * 24 * 60 * 60 * 1000; // 14 days, which is the half of the maximum possible timeout (~28 days for int32 value in NodeJS)
+
+type PermissionIdSource =
+    | 'codex_call_id'
+    | 'codex_mcp_tool_call_id'
+    | 'codex_event_id'
+    | 'request.id'
+    | 'generated';
+
+type ElicitationRequestLike = {
+    id?: unknown;
+    params?: unknown;
+};
+
+type ElicitationParams = {
+    message?: unknown;
+    mode?: unknown;
+    requestedSchema?: unknown;
+    codex_elicitation?: unknown;
+    codex_mcp_tool_call_id?: unknown;
+    codex_event_id?: unknown;
+    codex_call_id?: unknown;
+    codex_command?: unknown;
+    codex_cwd?: unknown;
+};
+
+type ResolvedPermissionRequestId = {
+    id: string;
+    source: PermissionIdSource;
+};
+
+type CodexPermissionDecision = 'approved' | 'approved_for_session' | 'denied' | 'abort';
+type ElicitationAction = 'accept' | 'decline' | 'cancel';
+
+type ElicitationResultLike = {
+    action: ElicitationAction;
+    content?: Record<string, string | number | boolean | string[]>;
+    // Legacy Codex compatibility: older versions consumed a top-level `decision`.
+    decision?: CodexPermissionDecision;
+};
+
+function asNonEmptyString(value: unknown): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
+}
+
+function asElicitationParams(value: unknown): ElicitationParams {
+    if (!value || typeof value !== 'object') {
+        return {};
+    }
+    return value as ElicitationParams;
+}
+
+function supportsDecisionField(params: ElicitationParams): boolean {
+    const mode = params.mode;
+    if (mode !== undefined && mode !== 'form') {
+        return false;
+    }
+    const requestedSchema = params.requestedSchema;
+    if (!requestedSchema || typeof requestedSchema !== 'object') {
+        return false;
+    }
+    const requested = requestedSchema as {
+        properties?: unknown;
+    };
+    if (!requested.properties || typeof requested.properties !== 'object') {
+        return false;
+    }
+    return Object.prototype.hasOwnProperty.call(requested.properties as Record<string, unknown>, 'decision');
+}
+
+/**
+ * Build an MCP-compatible elicitation result from a Happy permission decision.
+ * MCP v1.25+ requires `action` and optional `content`; legacy Codex consumed
+ * top-level `decision`, so we include both for compatibility.
+ */
+export function buildCodexElicitationResult(
+    decision: CodexPermissionDecision,
+    params: ElicitationParams = {}
+): ElicitationResultLike {
+    if (decision === 'approved' || decision === 'approved_for_session') {
+        const includeDecisionContent = supportsDecisionField(params);
+        return {
+            action: 'accept',
+            ...(includeDecisionContent ? { content: { decision } } : {}),
+            decision
+        };
+    }
+
+    if (decision === 'denied') {
+        return {
+            action: 'decline',
+            decision: 'denied'
+        };
+    }
+
+    return {
+        action: 'cancel',
+        decision: 'abort'
+    };
+}
+
+/**
+ * Resolve a stable request ID for permission prompts.
+ * Some Codex versions only send `message` + `requestedSchema` with no codex IDs.
+ */
+export function resolveCodexPermissionRequestId(request: ElicitationRequestLike): ResolvedPermissionRequestId {
+    const params = asElicitationParams(request.params);
+
+    const codexCallId = asNonEmptyString(params.codex_call_id);
+    if (codexCallId) {
+        return { id: codexCallId, source: 'codex_call_id' };
+    }
+
+    const mcpToolCallId = asNonEmptyString(params.codex_mcp_tool_call_id);
+    if (mcpToolCallId) {
+        return { id: mcpToolCallId, source: 'codex_mcp_tool_call_id' };
+    }
+
+    const codexEventId = asNonEmptyString(params.codex_event_id);
+    if (codexEventId) {
+        return { id: codexEventId, source: 'codex_event_id' };
+    }
+
+    const requestId = request.id;
+    if (typeof requestId === 'string' && requestId.trim().length > 0) {
+        return { id: requestId.trim(), source: 'request.id' };
+    }
+    if (typeof requestId === 'number' && Number.isFinite(requestId)) {
+        return { id: String(requestId), source: 'request.id' };
+    }
+
+    return { id: randomUUID(), source: 'generated' };
+}
 
 /**
  * Get the correct MCP subcommand based on installed codex version
@@ -128,49 +263,44 @@ export class CodexMcpClient {
         this.client.setRequestHandler(
             ElicitRequestSchema,
             async (request) => {
-                console.log('[CodexMCP] Received elicitation request:', request.params);
-
-                // Load params
-                const params = request.params as unknown as {
-                    message: string,
-                    codex_elicitation: string,
-                    codex_mcp_tool_call_id: string,
-                    codex_event_id: string,
-                    codex_call_id: string,
-                    codex_command: string[],
-                    codex_cwd: string
-                }
+                const params = asElicitationParams(request.params);
                 const toolName = 'CodexBash';
+                const { id: requestId, source: requestIdSource } = resolveCodexPermissionRequestId(
+                    request as ElicitationRequestLike
+                );
+                const command = Array.isArray(params.codex_command)
+                    ? params.codex_command.filter((item): item is string => typeof item === 'string')
+                    : [];
+                const cwd = asNonEmptyString(params.codex_cwd) ?? process.cwd();
+                const message = asNonEmptyString(params.message);
+
+                logger.debug(
+                    `[CodexMCP] Received permission request (${requestIdSource}): ${requestId}`
+                );
 
                 // If no permission handler set, deny by default
                 if (!this.permissionHandler) {
                     logger.debug('[CodexMCP] No permission handler set, denying by default');
-                    return {
-                        decision: 'denied' as const,
-                    };
+                    return buildCodexElicitationResult('denied', params);
                 }
 
                 try {
                     // Request permission through the handler
                     const result = await this.permissionHandler.handleToolCall(
-                        params.codex_call_id,
+                        requestId,
                         toolName,
                         {
-                            command: params.codex_command,
-                            cwd: params.codex_cwd
+                            command,
+                            cwd,
+                            ...(message ? { message } : {})
                         }
                     );
 
                     logger.debug('[CodexMCP] Permission result:', result);
-                    return {
-                        decision: result.decision
-                    }
+                    return buildCodexElicitationResult(result.decision, params);
                 } catch (error) {
                     logger.debug('[CodexMCP] Error handling permission request:', error);
-                    return {
-                        decision: 'denied' as const,
-                        reason: error instanceof Error ? error.message : 'Permission request failed'
-                    };
+                    return buildCodexElicitationResult('denied', params);
                 }
             }
         );

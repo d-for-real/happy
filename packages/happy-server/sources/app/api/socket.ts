@@ -28,7 +28,9 @@ export function startSocket(app: Fastify) {
         allowUpgrades: true,
         upgradeTimeout: 10000,
         connectTimeout: 20000,
-        serveClient: false // Don't serve the client files
+        serveClient: false, // Don't serve the client files
+        // Allow encrypted message payloads to include a few compressed image attachments.
+        maxHttpBufferSize: 12 * 1024 * 1024
     });
 
     let rpcListeners = new Map<string, Map<string, Socket>>();

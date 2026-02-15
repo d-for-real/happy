@@ -12,6 +12,42 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
+import { decodeClaudePromptWithAttachments, UserImageAttachment } from "@/api/userAttachments";
+
+type SDKUserContentBlock = Extract<SDKUserMessage['message']['content'], Array<any>>[number];
+
+function buildClaudeUserContent(message: string, attachments: UserImageAttachment[]): SDKUserMessage['message']['content'] {
+    if (attachments.length === 0) {
+        return message;
+    }
+
+    const blocks: SDKUserContentBlock[] = [];
+    const trimmed = message.trim();
+    if (trimmed.length > 0) {
+        blocks.push({
+            type: 'text',
+            text: message
+        });
+    } else {
+        blocks.push({
+            type: 'text',
+            text: 'Please analyze the attached image(s).'
+        });
+    }
+
+    for (const attachment of attachments) {
+        blocks.push({
+            type: 'image',
+            source: {
+                type: 'base64',
+                media_type: attachment.mimeType,
+                data: attachment.data
+            }
+        });
+    }
+
+    return blocks;
+}
 
 export async function claudeRemote(opts: {
 
@@ -88,7 +124,8 @@ export async function claudeRemote(opts: {
     }
 
     // Handle special commands
-    const specialCommand = parseSpecialCommand(initial.message);
+    const initialDecoded = decodeClaudePromptWithAttachments(initial.message);
+    const specialCommand = parseSpecialCommand(initialDecoded.text);
 
     // Handle /clear command
     if (specialCommand.type === 'clear') {
@@ -151,7 +188,7 @@ export async function claudeRemote(opts: {
         type: 'user',
         message: {
             role: 'user',
-            content: initial.message,
+            content: buildClaudeUserContent(initialDecoded.text, initialDecoded.attachments),
         },
     });
 
@@ -213,7 +250,14 @@ export async function claudeRemote(opts: {
                     return;
                 }
                 mode = next.mode;
-                messages.push({ type: 'user', message: { role: 'user', content: next.message } });
+                const nextDecoded = decodeClaudePromptWithAttachments(next.message);
+                messages.push({
+                    type: 'user',
+                    message: {
+                        role: 'user',
+                        content: buildClaudeUserContent(nextDecoded.text, nextDecoded.attachments)
+                    }
+                });
             }
 
             // Handle tool result

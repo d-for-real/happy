@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { UsageSchema } from '@/claude/types'
+import { UserImageAttachmentSchema } from './userAttachments'
 
 /**
  * Permission mode type - includes both Claude and Codex modes
@@ -276,7 +277,8 @@ export const UserMessageSchema = z.object({
   role: z.literal('user'),
   content: z.object({
     type: z.literal('text'),
-    text: z.string()
+    text: z.string(),
+    attachments: z.array(UserImageAttachmentSchema).optional()
   }),
   localKey: z.string().optional(), // Mobile messages include this
   meta: MessageMetaSchema.optional()

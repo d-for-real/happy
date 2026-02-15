@@ -41,6 +41,9 @@ export function formatMessage(message: Message): string | null {
         lines.push(`Claude Code: \n<text>${message.text}</text>`);
     } else if (message.kind === 'user-text') {
         lines.push(`User sent message: \n<text>${message.text}</text>`);
+        if (message.attachments && message.attachments.length > 0) {
+            lines.push(`User attached ${message.attachments.length} image(s).`);
+        }
     } else if (message.kind === 'tool-call' && !VOICE_CONFIG.DISABLE_TOOL_CALLS) {
         const toolDescription = message.tool.description ? ` - ${message.tool.description}` : '';
         if (VOICE_CONFIG.LIMITED_TOOL_CALLS) {

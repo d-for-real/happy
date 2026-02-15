@@ -1,5 +1,5 @@
 import * as React from "react";
-import { View, Text } from "react-native";
+import { View, Text, Image as RNImage } from "react-native";
 import { StyleSheet } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
@@ -11,6 +11,7 @@ import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import { useSetting } from "@/sync/storage";
+import { toImageDataUri } from "@/sync/messageAttachments";
 
 export const MessageView = (props: {
   message: Message;
@@ -76,6 +77,18 @@ function UserTextBlock(props: {
   return (
     <View style={styles.userMessageContainer}>
       <View style={styles.userMessageBubble}>
+        {props.message.attachments && props.message.attachments.length > 0 && (
+          <View style={styles.userAttachmentsContainer}>
+            {props.message.attachments.map((attachment) => (
+              <RNImage
+                key={attachment.id}
+                source={{ uri: toImageDataUri(attachment) }}
+                style={styles.userAttachmentImage}
+                resizeMode="cover"
+              />
+            ))}
+          </View>
+        )}
         <MarkdownView markdown={props.message.displayText || props.message.text} onOptionPress={handleOptionPress} />
         {/* {__DEV__ && (
           <Text style={styles.debugText}>{JSON.stringify(props.message.meta)}</Text>
@@ -196,6 +209,18 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: 12,
     marginBottom: 12,
     maxWidth: '100%',
+  },
+  userAttachmentsContainer: {
+    width: '100%',
+    gap: 8,
+    marginBottom: 8,
+  },
+  userAttachmentImage: {
+    width: 220,
+    maxWidth: '100%',
+    height: 140,
+    borderRadius: 10,
+    backgroundColor: theme.colors.surfacePressed,
   },
   agentMessageContainer: {
     marginHorizontal: 16,
