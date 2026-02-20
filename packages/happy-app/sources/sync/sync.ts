@@ -1568,14 +1568,15 @@ class Sync {
             const data = await response.json() as V3PostSessionMessagesResponse;
             pending.splice(0, batch.length);
             if (Array.isArray(data.messages) && data.messages.length > 0) {
-                const currentLastSeq = this.sessionLastSeq.get(sessionId) ?? 0;
-                let maxSeq = currentLastSeq;
+                let maxSeq = 0;
                 for (const message of data.messages) {
                     if (message.seq > maxSeq) {
                         maxSeq = message.seq;
                     }
                 }
-                this.sessionLastSeq.set(sessionId, maxSeq);
+                // Monotonic advance: re-read current value to avoid rewinding if socket raced ahead
+                const latestSeq = this.sessionLastSeq.get(sessionId) ?? 0;
+                this.sessionLastSeq.set(sessionId, Math.max(latestSeq, maxSeq));
             }
         } catch (error) {
             this.maybeStartBackgroundSendWatchdog();
@@ -1648,7 +1649,9 @@ class Sync {
                     this.applyMessages(sessionId, normalizedMessages);
                 }
 
-                this.sessionLastSeq.set(sessionId, maxSeq);
+                // Monotonic advance: never rewind cursor even if socket updates raced ahead
+                const currentSeq = this.sessionLastSeq.get(sessionId) ?? 0;
+                this.sessionLastSeq.set(sessionId, Math.max(currentSeq, maxSeq));
                 hasMore = !!data.hasMore;
                 if (hasMore && maxSeq === afterSeq) {
                     log.log(`💬 fetchMessages: pagination stalled for ${sessionId}, stopping to avoid infinite loop`);
@@ -1840,8 +1843,12 @@ class Sync {
                 }
             }
 
-            // Ping session
-            this.onSessionVisible(updateData.body.sid);
+            // Refresh git status and voice hooks (but NOT messages — already handled above)
+            gitStatusSync.getSync(updateData.body.sid).invalidate();
+            const visibleSession = storage.getState().sessions[updateData.body.sid];
+            if (visibleSession) {
+                voiceHooks.onSessionFocus(updateData.body.sid, visibleSession.metadata || undefined);
+            }
 
         } else if (updateData.body.t === 'new-session') {
             log.log('🆕 New session update received');
