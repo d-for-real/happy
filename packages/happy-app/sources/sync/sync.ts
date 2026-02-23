@@ -1804,13 +1804,19 @@ class Sync {
                         this.fetchSessions();
                     }
 
-                    // Fast-path only on consecutive seq values, otherwise fetch from server.
+                    // Always apply decrypted live messages immediately so chat UI does not stall
+                    // when sequence state is missing or temporarily out-of-sync.
                     const currentLastSeq = this.sessionLastSeq.get(updateData.body.sid);
                     const incomingSeq = updateData.body.message.seq;
-                    if (lastMessage && currentLastSeq !== undefined && incomingSeq === currentLastSeq + 1) {
-                        console.log('🔄 Sync: Applying message (fast path):', JSON.stringify(lastMessage));
+                    if (lastMessage) {
+                        console.log('🔄 Sync: Applying live message:', JSON.stringify(lastMessage));
                         this.enqueueMessages(updateData.body.sid, [lastMessage]);
-                        this.sessionLastSeq.set(updateData.body.sid, incomingSeq);
+
+                        const nextLastSeq = currentLastSeq === undefined
+                            ? incomingSeq
+                            : Math.max(currentLastSeq, incomingSeq);
+                        this.sessionLastSeq.set(updateData.body.sid, nextLastSeq);
+
                         let hasMutableTool = false;
                         if (lastMessage.role === 'agent' && lastMessage.content[0] && lastMessage.content[0].type === 'tool-result') {
                             hasMutableTool = storage.getState().isMutableToolCall(updateData.body.sid, lastMessage.content[0].tool_use_id);
@@ -1818,8 +1824,13 @@ class Sync {
                         if (hasMutableTool) {
                             gitStatusSync.invalidate(updateData.body.sid);
                         }
-                    } else {
-                        this.getMessagesSync(updateData.body.sid).invalidate();
+
+                        // Trigger a backfill fetch when we detect a gap or unknown baseline.
+                        // Deduplication by message id keeps this safe.
+                        const isConsecutive = currentLastSeq !== undefined && incomingSeq === currentLastSeq + 1;
+                        if (!isConsecutive) {
+                            this.getMessagesSync(updateData.body.sid).invalidate();
+                        }
                     }
                 }
             }
