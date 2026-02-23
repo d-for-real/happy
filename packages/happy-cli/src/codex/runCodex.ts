@@ -33,6 +33,8 @@ import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import type { ApiSessionClient } from '@/api/apiSession';
 import { resolveCodexExecutionPolicy } from './executionPolicy';
 import { mapCodexMcpMessageToSessionEnvelopes, mapCodexProcessorMessageToSessionEnvelopes } from './utils/sessionProtocolMapper';
+import { resolveHappyMcpBridgeLaunch } from './happyMcpBridgeLaunch';
+import { appendCodexImageAttachmentFiles, getCodexAttachmentSessionDir, materializeCodexImageAttachments } from './codexImageAttachments';
 
 type ReadyEventOptions = {
     pending: unknown;
@@ -160,6 +162,8 @@ export async function runCodex(opts: {
         permissionMode: mode.permissionMode,
         model: mode.model,
     }));
+    const workspaceRoot = resolve(process.cwd());
+    const attachmentSessionDir = getCodexAttachmentSessionDir(workspaceRoot, sessionTag);
 
     // Track current overrides to apply per message
     // Use shared PermissionMode type from api/types for cross-agent compatibility
@@ -191,7 +195,27 @@ export async function runCodex(opts: {
             permissionMode: messagePermissionMode || 'default',
             model: messageModel,
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        const hasAttachments = !!message.content.attachments && message.content.attachments.length > 0;
+        let prompt = message.content.text;
+
+        if (hasAttachments) {
+            try {
+                const files = materializeCodexImageAttachments({
+                    attachments: message.content.attachments,
+                    workspaceRoot,
+                    sessionTag
+                });
+                prompt = appendCodexImageAttachmentFiles(message.content.text, files);
+                logger.debug(`[Codex] Queued user message with ${files.length} image attachment(s)`);
+            } catch (error) {
+                logger.warn('[Codex] Failed to materialize image attachments. Falling back to text-only prompt.', error);
+                prompt = message.content.text;
+            }
+            messageQueue.pushIsolate(prompt, enhancedMode);
+            return;
+        }
+
+        messageQueue.push(prompt, enhancedMode);
     });
     let thinking = false;
     let currentTurnId: string | null = null;
@@ -525,11 +549,14 @@ export async function runCodex(opts: {
 
     // Start Happy MCP server (HTTP) and prepare STDIO bridge config for Codex
     const happyServer = await startHappyServer(session);
-    const bridgeCommand = join(projectPath(), 'bin', 'happy-mcp.mjs');
+    const bridgeLaunch = resolveHappyMcpBridgeLaunch({ projectRoot: projectPath() });
+    logger.debug(
+        `[codex] Using Happy MCP bridge launcher (${bridgeLaunch.mode}): ${bridgeLaunch.command} ${bridgeLaunch.args.join(' ')}`
+    );
     const mcpServers = {
         happy: {
-            command: bridgeCommand,
-            args: ['--url', happyServer.url]
+            command: bridgeLaunch.command,
+            args: [...bridgeLaunch.args, '--url', happyServer.url]
         }
     } as const;
     let first = true;
@@ -727,6 +754,11 @@ export async function runCodex(opts: {
         // Stop Happy MCP server
         logger.debug('[codex]: happyServer.stop');
         happyServer.stop();
+        try {
+            fs.rmSync(attachmentSessionDir, { recursive: true, force: true });
+        } catch (error) {
+            logger.debug('[codex]: Failed to clean attachment session directory', error);
+        }
 
         // Clean up ink UI
         if (process.stdin.isTTY) {

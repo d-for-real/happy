@@ -28,6 +28,7 @@ import { claudeLocal } from '@/claude/claudeLocal';
 import { createSessionScanner } from '@/claude/utils/sessionScanner';
 import { Session } from './session';
 import { applySandboxPermissionPolicy, resolveInitialClaudePermissionMode } from './utils/permissionMode';
+import { encodeClaudePromptWithAttachments } from '@/api/userAttachments';
 
 /** JavaScript runtime to use for spawning Claude Code */
 export type JsRuntime = 'node' | 'bun'
@@ -380,7 +381,17 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
             allowedTools: messageAllowedTools,
             disallowedTools: messageDisallowedTools
         };
-        messageQueue.push(message.content.text, enhancedMode);
+        const queuedMessage = encodeClaudePromptWithAttachments(
+            message.content.text,
+            message.content.attachments
+        );
+
+        if (message.content.attachments && message.content.attachments.length > 0) {
+            messageQueue.pushIsolate(queuedMessage, enhancedMode);
+            logger.debug(`[loop] Queued user message with ${message.content.attachments.length} image attachment(s)`);
+        } else {
+            messageQueue.push(queuedMessage, enhancedMode);
+        }
         logger.debugLargeJson('User message pushed to queue:', message)
     });
 

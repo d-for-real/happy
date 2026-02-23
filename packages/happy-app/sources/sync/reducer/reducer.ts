@@ -116,6 +116,7 @@ import { createTracer, traceMessages, TracerState } from "./reducerTracer";
 import { AgentState } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
 import { parseMessageAsEvent } from "./messageToEvent";
+import { UserImageAttachment } from "../messageAttachments";
 
 type ReducerMessage = {
     id: string;
@@ -123,6 +124,7 @@ type ReducerMessage = {
     createdAt: number;
     role: 'user' | 'agent';
     text: string | null;
+    attachments?: UserImageAttachment[];
     isThinking?: boolean;
     event: AgentEvent | null;
     tool: ToolCall | null;
@@ -608,6 +610,7 @@ export function reducer(state: ReducerState, messages: NormalizedMessage[], agen
                 role: 'user',
                 createdAt: msg.createdAt,
                 text: msg.content.text,
+                attachments: msg.content.attachments,
                 tool: null,
                 event: null,
                 meta: msg.meta,
@@ -1115,6 +1118,7 @@ function convertReducerMessageToMessage(reducerMsg: ReducerMessage, state: Reduc
             createdAt: reducerMsg.createdAt,
             kind: 'user-text',
             text: reducerMsg.text,
+            ...(reducerMsg.attachments && reducerMsg.attachments.length > 0 && { attachments: reducerMsg.attachments }),
             ...(reducerMsg.meta?.displayText && { displayText: reducerMsg.meta.displayText }),
             meta: reducerMsg.meta
         };

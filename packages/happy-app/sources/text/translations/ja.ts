@@ -453,9 +453,9 @@ export const ja: TranslationStructure = {
         },
         codexModel: {
             title: 'CODEXモデル',
-            gpt5CodexLow: 'gpt-5-codex 低',
-            gpt5CodexMedium: 'gpt-5-codex 中',
-            gpt5CodexHigh: 'gpt-5-codex 高',
+            gpt5CodexLow: 'gpt-5.3-codex 低',
+            gpt5CodexMedium: 'gpt-5.3-codex 中',
+            gpt5CodexHigh: 'gpt-5.3-codex 高',
             gpt5Minimal: 'GPT-5 最小',
             gpt5Low: 'GPT-5 低',
             gpt5Medium: 'GPT-5 中',
