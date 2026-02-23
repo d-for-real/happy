@@ -214,11 +214,11 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
+        const serverUrl = configuration.serverUrl;
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
         this.socket = io(serverUrl, {
-            transports: ['websocket'],
+            transports: ['polling', 'websocket'],
             auth: {
                 token: this.token,
                 clientType: 'machine-scoped' as const,
@@ -226,8 +226,10 @@ export class ApiMachineClient {
             },
             path: '/v1/updates',
             reconnection: true,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000
+            reconnectionDelayMax: 5000,
+            withCredentials: true
         });
 
         this.socket.on('connect', () => {
@@ -252,8 +254,8 @@ export class ApiMachineClient {
             this.startKeepAlive();
         });
 
-        this.socket.on('disconnect', () => {
-            logger.debug('[API MACHINE] Disconnected from server');
+        this.socket.on('disconnect', (reason) => {
+            logger.debug(`[API MACHINE] Disconnected from server: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.stopKeepAlive();
         });
