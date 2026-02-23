@@ -214,11 +214,11 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl;
+        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
         this.socket = io(serverUrl, {
-            transports: ['polling', 'websocket'],
+            transports: ['websocket'],
             auth: {
                 token: this.token,
                 clientType: 'machine-scoped' as const,
