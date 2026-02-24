@@ -131,7 +131,7 @@ export class AcpSessionManager {
     }
 
     if (msg.type === 'model-output') {
-      const text = msg.textDelta ?? '';
+      const text = msg.textDelta ?? msg.fullText ?? '';
       if (!text) {
         return [];
       }

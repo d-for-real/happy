@@ -330,17 +330,20 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(sessionUser).toMatchObject({
             role: 'session',
             content: {
-                role: 'user',
-                ev: {
-                    t: 'text',
-                    text: 'hi there'
+                type: 'session',
+                data: {
+                    role: 'user',
+                    ev: {
+                        t: 'text',
+                        text: 'hi there'
+                    }
                 }
             },
             meta: {
                 sentFrom: 'cli'
             }
         });
-        expect(typeof (sessionUser as any).content.time).toBe('number');
+        expect(typeof (sessionUser as any).content.data.time).toBe('number');
     });
 
     it('sends session protocol messages through enqueueMessage with session envelope', async () => {
@@ -373,7 +376,10 @@ describe('ApiSessionClient v3 messages API migration', () => {
 
         expect(decrypted).toEqual({
             role: 'session',
-            content: envelope,
+            content: {
+                type: 'session',
+                data: envelope,
+            },
             meta: {
                 sentFrom: 'cli'
             }
@@ -410,10 +416,13 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(sessionUser).toMatchObject({
             role: 'session',
             content: {
-                id: 'env-user-1',
-                time: 1001,
-                role: 'user',
-                ev: { t: 'text', text: 'shadow this' }
+                type: 'session',
+                data: {
+                    id: 'env-user-1',
+                    time: 1001,
+                    role: 'user',
+                    ev: { t: 'text', text: 'shadow this' }
+                }
             }
         });
     });
@@ -451,14 +460,17 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(sessionOnly).toMatchObject({
             role: 'session',
             content: {
-                role: 'user',
-                ev: { t: 'text', text: 'session only' }
+                type: 'session',
+                data: {
+                    role: 'user',
+                    ev: { t: 'text', text: 'session only' }
+                }
             },
             meta: {
                 sentFrom: 'cli'
             }
         });
-        expect(typeof (sessionOnly as any).content.time).toBe('number');
+        expect(typeof (sessionOnly as any).content.data.time).toBe('number');
     });
 
     it('sends ACP agent messages through enqueueMessage', async () => {

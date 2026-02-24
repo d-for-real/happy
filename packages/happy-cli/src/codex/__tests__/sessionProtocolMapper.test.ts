@@ -49,6 +49,161 @@ describe('mapCodexMcpMessageToSessionEnvelopes', () => {
         expect(result.envelopes[0].ev).toEqual({ t: 'text', text: 'hello' });
     });
 
+    it('auto-starts a turn when agent text arrives without task_started', () => {
+        const result = mapCodexMcpMessageToSessionEnvelopes(
+            { type: 'agent_message', message: 'hello without lifecycle' },
+            { currentTurnId: null }
+        );
+
+        expect(result.envelopes).toHaveLength(2);
+        expect(result.envelopes[0].ev).toEqual({ t: 'turn-start' });
+        expect(result.envelopes[1].ev).toEqual({ t: 'text', text: 'hello without lifecycle' });
+        expect(result.currentTurnId).toBeTruthy();
+        expect(result.envelopes[0].turn).toBe(result.currentTurnId);
+        expect(result.envelopes[1].turn).toBe(result.currentTurnId);
+    });
+
+    it('maps item_completed AgentMessage payloads to session text', () => {
+        const result = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    content: [{ type: 'Text', text: 'from item payload' }]
+                }
+            },
+            { currentTurnId: 'turn-1' }
+        );
+
+        expect(result.envelopes).toHaveLength(1);
+        expect(result.envelopes[0].turn).toBe('turn-1');
+        expect(result.envelopes[0].ev).toEqual({ t: 'text', text: 'from item payload' });
+    });
+
+    it('auto-starts a turn when item_completed text arrives without task_started', () => {
+        const result = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    content: [{ type: 'Text', text: 'late item payload' }]
+                }
+            },
+            { currentTurnId: null }
+        );
+
+        expect(result.envelopes).toHaveLength(2);
+        expect(result.envelopes[0].ev).toEqual({ t: 'turn-start' });
+        expect(result.envelopes[1].ev).toEqual({ t: 'text', text: 'late item payload' });
+        expect(result.currentTurnId).toBeTruthy();
+        expect(result.envelopes[1].turn).toBe(result.currentTurnId);
+    });
+
+    it('maps item_completed AgentMessage output_text payloads to session text', () => {
+        const result = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    content: [{ type: 'output_text', text: 'from output_text payload' }]
+                }
+            },
+            { currentTurnId: 'turn-1' }
+        );
+
+        expect(result.envelopes).toHaveLength(1);
+        expect(result.envelopes[0].turn).toBe('turn-1');
+        expect(result.envelopes[0].ev).toEqual({ t: 'text', text: 'from output_text payload' });
+    });
+
+    it('uses buffered agent_message_content_delta text when item_completed has no content text', () => {
+        const fromDelta = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'agent_message_content_delta',
+                item_id: 'msg-1',
+                delta: 'Hello ',
+            },
+            { currentTurnId: 'turn-1' }
+        );
+        const fromSecondDelta = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'agent_message_content_delta',
+                item_id: 'msg-1',
+                delta: 'world!',
+            },
+            {
+                currentTurnId: fromDelta.currentTurnId,
+                startedSubagents: fromDelta.startedSubagents,
+                activeSubagents: fromDelta.activeSubagents,
+                providerSubagentToSessionSubagent: fromDelta.providerSubagentToSessionSubagent,
+                completedAgentMessageCounts: fromDelta.completedAgentMessageCounts,
+                agentMessageTextByItemId: fromDelta.agentMessageTextByItemId,
+            }
+        );
+        const fromItemCompleted = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    id: 'msg-1',
+                    content: [],
+                }
+            },
+            {
+                currentTurnId: fromSecondDelta.currentTurnId,
+                startedSubagents: fromSecondDelta.startedSubagents,
+                activeSubagents: fromSecondDelta.activeSubagents,
+                providerSubagentToSessionSubagent: fromSecondDelta.providerSubagentToSessionSubagent,
+                completedAgentMessageCounts: fromSecondDelta.completedAgentMessageCounts,
+                agentMessageTextByItemId: fromSecondDelta.agentMessageTextByItemId,
+            }
+        );
+
+        expect(fromItemCompleted.envelopes).toHaveLength(1);
+        expect(fromItemCompleted.envelopes[0].ev).toEqual({ t: 'text', text: 'Hello world!' });
+    });
+
+    it('suppresses duplicate agent_message after item_completed AgentMessage', () => {
+        const fromItem = mapCodexMcpMessageToSessionEnvelopes(
+            {
+                type: 'item_completed',
+                item: {
+                    type: 'AgentMessage',
+                    content: [{ type: 'Text', text: 'dedupe me' }]
+                }
+            },
+            { currentTurnId: 'turn-1' }
+        );
+        expect(fromItem.envelopes).toHaveLength(1);
+
+        const fromAgentMessage = mapCodexMcpMessageToSessionEnvelopes(
+            { type: 'agent_message', message: 'dedupe me' },
+            {
+                currentTurnId: fromItem.currentTurnId,
+                startedSubagents: fromItem.startedSubagents,
+                activeSubagents: fromItem.activeSubagents,
+                providerSubagentToSessionSubagent: fromItem.providerSubagentToSessionSubagent,
+                completedAgentMessageCounts: fromItem.completedAgentMessageCounts,
+                agentMessageTextByItemId: fromItem.agentMessageTextByItemId,
+            }
+        );
+        expect(fromAgentMessage.envelopes).toHaveLength(0);
+
+        const nextUnique = mapCodexMcpMessageToSessionEnvelopes(
+            { type: 'agent_message', message: 'new message' },
+            {
+                currentTurnId: fromAgentMessage.currentTurnId,
+                startedSubagents: fromAgentMessage.startedSubagents,
+                activeSubagents: fromAgentMessage.activeSubagents,
+                providerSubagentToSessionSubagent: fromAgentMessage.providerSubagentToSessionSubagent,
+                completedAgentMessageCounts: fromAgentMessage.completedAgentMessageCounts,
+                agentMessageTextByItemId: fromAgentMessage.agentMessageTextByItemId,
+            }
+        );
+        expect(nextUnique.envelopes).toHaveLength(1);
+        expect(nextUnique.envelopes[0].ev).toEqual({ t: 'text', text: 'new message' });
+    });
+
     it('maps parent call linkage to subagent field', () => {
         const result = mapCodexMcpMessageToSessionEnvelopes(
             { type: 'agent_message', message: 'subagent hello', parent_call_id: 'parent-call-1' },

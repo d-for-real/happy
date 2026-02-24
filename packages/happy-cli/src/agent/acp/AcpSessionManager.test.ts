@@ -139,6 +139,17 @@ describe('AcpSessionManager text mapping', () => {
     expect(envelopes[1].ev).toEqual({ t: 'turn-end', status: 'completed' });
   });
 
+  it('accepts fullText model-output when textDelta is absent', () => {
+    const mapper = new AcpSessionManager();
+    mapper.startTurn();
+
+    expect(mapper.mapMessage({ type: 'model-output', fullText: 'complete response' })).toHaveLength(0);
+    const envelopes = mapper.endTurn('completed');
+    expect(envelopes).toHaveLength(2);
+    expect(envelopes[0].ev).toEqual({ t: 'text', text: 'complete response' });
+    expect(envelopes[1].ev).toEqual({ t: 'turn-end', status: 'completed' });
+  });
+
   it('flushes accumulated output when thinking starts', () => {
     const mapper = new AcpSessionManager();
     mapper.startTurn();
