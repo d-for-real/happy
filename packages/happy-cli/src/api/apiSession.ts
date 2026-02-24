@@ -418,8 +418,9 @@ export class ApiSessionClient extends EventEmitter {
 
     private enqueueSessionProtocolEnvelope(envelope: SessionEnvelope, invalidate: boolean = true) {
         const content = {
-            role: 'session',
-            // Persist canonical wrapped shape for broad client compatibility.
+            // Use role=agent + wrapped session payload for broad app compatibility
+            // (older clients may not handle role=session yet).
+            role: 'agent',
             content: {
                 type: 'session',
                 data: envelope,

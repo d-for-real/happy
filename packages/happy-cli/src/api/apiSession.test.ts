@@ -350,7 +350,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             decodeBase64(payload.messages[0].content)
         );
         expect(sessionUser).toMatchObject({
-            role: 'session',
+            role: 'agent',
             content: {
                 type: 'session',
                 data: {
@@ -397,7 +397,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         );
 
         expect(decrypted).toEqual({
-            role: 'session',
+            role: 'agent',
             content: {
                 type: 'session',
                 data: envelope,
@@ -436,7 +436,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
             decodeBase64(payload.messages[0].content)
         );
         expect(sessionUser).toMatchObject({
-            role: 'session',
+            role: 'agent',
             content: {
                 type: 'session',
                 data: {
@@ -480,7 +480,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         );
 
         expect(sessionOnly).toMatchObject({
-            role: 'session',
+            role: 'agent',
             content: {
                 type: 'session',
                 data: {
