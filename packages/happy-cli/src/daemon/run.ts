@@ -22,6 +22,7 @@ import { join } from 'path';
 import { projectPath } from '@/projectPath';
 import { getTmuxUtilities, isTmuxAvailable, parseTmuxSessionIdentifier, formatTmuxSessionIdentifier } from '@/utils/tmux';
 import { expandEnvironmentVariables } from '@/utils/expandEnvVars';
+import { getOrCreateInFlightSpawnSession } from './spawnSessionDedup';
 
 // Prepare initial metadata
 export const initialMachineMetadata: MachineMetadata = {
@@ -170,6 +171,9 @@ export async function startDaemon(): Promise<void> {
     // Session spawning awaiter system
     const pidToAwaiter = new Map<number, (session: TrackedSession) => void>();
 
+    // In-flight spawn deduplication: collapse duplicate concurrent spawn requests
+    const inFlightSpawnRequests = new Map<string, Promise<SpawnSessionResult>>();
+
     // Helper functions
     const getCurrentChildren = () => Array.from(pidToTrackedSession.values());
 
@@ -216,7 +220,7 @@ export async function startDaemon(): Promise<void> {
     };
 
     // Spawn a new session (sessionId reserved for future --resume functionality)
-    const spawnSession = async (options: SpawnSessionOptions): Promise<SpawnSessionResult> => {
+    const spawnSessionCore = async (options: SpawnSessionOptions): Promise<SpawnSessionResult> => {
       logger.debugLargeJson('[DAEMON RUN] Spawning session', options);
 
       const { directory, sessionId, machineId, approvedNewDirectoryCreation = true } = options;
@@ -592,6 +596,22 @@ export async function startDaemon(): Promise<void> {
           errorMessage: `Failed to spawn session: ${errorMessage}`
         };
       }
+    };
+
+    const spawnSession = async (options: SpawnSessionOptions): Promise<SpawnSessionResult> => {
+      const { promise, deduped } = getOrCreateInFlightSpawnSession({
+        inFlightSpawnRequests,
+        options,
+        createSpawnPromise: () => spawnSessionCore(options)
+      });
+
+      if (deduped) {
+        logger.debug(
+          `[DAEMON RUN] Reusing in-flight spawn request (directory: ${options.directory}, agent: ${options.agent || 'claude'}, sessionId: ${options.sessionId || 'new'})`
+        );
+      }
+
+      return promise;
     };
 
     // Stop a session by sessionId or PID fallback
