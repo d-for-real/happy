@@ -40,7 +40,6 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
-import { initializeTodoSync } from '../-zen/model/ops';
 import { UserImageAttachment } from './messageAttachments';
 
 type V3GetSessionMessagesResponse = {
