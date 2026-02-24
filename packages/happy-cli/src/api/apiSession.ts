@@ -149,7 +149,10 @@ export class ApiSessionClient extends EventEmitter {
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
-            transports: ['websocket'],
+            // Start with polling and upgrade to websocket when possible.
+            // This reduces first-message stalls when websocket transport is unstable.
+            transports: ['polling', 'websocket'],
+            timeout: 10000,
             withCredentials: true,
             autoConnect: false
         });
@@ -159,7 +162,8 @@ export class ApiSessionClient extends EventEmitter {
         //
 
         this.socket.on('connect', () => {
-            logger.debug('Socket connected successfully');
+            const transport = this.socket.io.engine.transport.name;
+            logger.debug(`Socket connected successfully (transport: ${transport})`);
             this.rpcHandlerManager.onSocketConnect(this.socket);
             this.receiveSync.invalidate();
         })

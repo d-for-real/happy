@@ -174,6 +174,13 @@ describe('ApiSessionClient v3 messages API migration', () => {
             off: vi.fn(),
             emit: vi.fn(),
             emitWithAck: vi.fn(async () => ({ result: 'error' })),
+            io: {
+                engine: {
+                    transport: {
+                        name: 'polling'
+                    }
+                }
+            },
             volatile: {
                 emit: vi.fn()
             },

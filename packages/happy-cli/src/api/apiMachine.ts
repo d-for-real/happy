@@ -214,11 +214,13 @@ export class ApiMachineClient {
     }
 
     connect() {
-        const serverUrl = configuration.serverUrl.replace(/^http/, 'ws');
+        const serverUrl = configuration.serverUrl;
         logger.debug(`[API MACHINE] Connecting to ${serverUrl}`);
 
         this.socket = io(serverUrl, {
-            transports: ['websocket'],
+            // Start with polling, then upgrade to websocket when available.
+            // This avoids long startup stalls on flaky websocket handshakes.
+            transports: ['polling', 'websocket'],
             auth: {
                 token: this.token,
                 clientType: 'machine-scoped' as const,
@@ -229,11 +231,13 @@ export class ApiMachineClient {
             reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
             reconnectionDelayMax: 5000,
+            timeout: 10000,
             withCredentials: true
         });
 
         this.socket.on('connect', () => {
-            logger.debug('[API MACHINE] Connected to server');
+            const transport = this.socket.io.engine.transport.name;
+            logger.debug(`[API MACHINE] Connected to server (transport: ${transport})`);
 
             // Update daemon state to running
             // We need to override previous state because the daemon (this process)
