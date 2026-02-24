@@ -2,6 +2,7 @@ import { z } from 'zod'
 import type { Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
 import type { SandboxConfig } from '@/persistence'
+import { UserImageAttachmentSchema } from './userAttachments'
 
 export {
   SessionMessageContentSchema,
@@ -208,7 +209,8 @@ export const UserMessageSchema = z.object({
   role: z.literal('user'),
   content: z.object({
     type: z.literal('text'),
-    text: z.string()
+    text: z.string(),
+    attachments: z.array(UserImageAttachmentSchema).optional()
   }),
   localKey: z.string().optional(), // Mobile messages include this
   meta: MessageMetaSchema.optional()

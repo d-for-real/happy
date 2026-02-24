@@ -20,9 +20,11 @@ export async function findAllHappyProcesses(): Promise<Array<{ pid: number, comm
       const cmd = proc.cmd || '';
       const name = proc.name || '';
       
-      // Check if it's a Happy process
-      const isHappy = name.includes('happy') || 
-                      name === 'node' && (cmd.includes('happy-cli') || cmd.includes('dist/index.mjs')) ||
+      // `ps-list` may report Node process names as `MainThread` on Linux,
+      // so detect by command line in addition to process name.
+      const isHappyNodeCommand = cmd.includes('happy-cli') || cmd.includes('dist/index.mjs');
+      const isHappy = name.includes('happy') ||
+                      isHappyNodeCommand ||
                       cmd.includes('happy.mjs') ||
                       cmd.includes('happy-coder') ||
                       (cmd.includes('tsx') && cmd.includes('src/index.ts') && cmd.includes('happy-cli'));

@@ -226,8 +226,10 @@ export class ApiMachineClient {
             },
             path: '/v1/updates',
             reconnection: true,
+            reconnectionAttempts: Infinity,
             reconnectionDelay: 1000,
-            reconnectionDelayMax: 5000
+            reconnectionDelayMax: 5000,
+            withCredentials: true
         });
 
         this.socket.on('connect', () => {
@@ -252,8 +254,8 @@ export class ApiMachineClient {
             this.startKeepAlive();
         });
 
-        this.socket.on('disconnect', () => {
-            logger.debug('[API MACHINE] Disconnected from server');
+        this.socket.on('disconnect', (reason) => {
+            logger.debug(`[API MACHINE] Disconnected from server: ${reason}`);
             this.rpcHandlerManager.onSocketDisconnect();
             this.stopKeepAlive();
         });

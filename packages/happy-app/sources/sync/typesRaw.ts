@@ -1,6 +1,7 @@
 import * as z from 'zod';
 import { isCuid } from '@paralleldrive/cuid2';
 import { MessageMetaSchema, MessageMeta } from './typesMessageMeta';
+import { UserImageAttachment, UserImageAttachmentSchema } from './messageAttachments';
 
 //
 // Raw types
@@ -442,7 +443,8 @@ const rawRecordSchema = z.preprocess(
             role: z.literal('user'),
             content: z.object({
                 type: z.literal('text'),
-                text: z.string()
+                text: z.string(),
+                attachments: z.array(UserImageAttachmentSchema).optional()
             }),
             meta: MessageMetaSchema.optional()
         }),
@@ -514,6 +516,7 @@ export type NormalizedMessage = ({
     content: {
         type: 'text';
         text: string;
+        attachments?: UserImageAttachment[];
     }
 } | {
     role: 'agent'

@@ -24,6 +24,7 @@ import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
 import { AIBackendProfile, getProfileEnvironmentVariables, validateProfileForAgent } from '@/sync/settings';
 import { getBuiltInProfile } from '@/sync/profileUtils';
+import { UserImageAttachment, toImageDataUri } from '@/sync/messageAttachments';
 
 interface AgentInputProps {
     value: string;
@@ -76,6 +77,9 @@ interface AgentInputProps {
     minHeight?: number;
     profileId?: string | null;
     onProfileClick?: () => void;
+    attachments?: UserImageAttachment[];
+    onAttachmentPick?: () => void;
+    onAttachmentRemove?: (id: string) => void;
 }
 
 const MAX_CONTEXT_SIZE = 190000;
@@ -278,6 +282,36 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     sendButtonIcon: {
         color: theme.colors.button.primary.tint,
     },
+    attachmentStrip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 8,
+        paddingBottom: 8,
+    },
+    attachmentPreview: {
+        width: 54,
+        height: 54,
+        borderRadius: 10,
+        overflow: 'hidden',
+        position: 'relative',
+        backgroundColor: theme.colors.surfacePressed,
+    },
+    attachmentImage: {
+        width: '100%',
+        height: '100%',
+    },
+    attachmentRemove: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 18,
+        height: 18,
+        borderRadius: 9,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
 }));
 
 const getContextWarning = (contextSize: number, alwaysShow: boolean = false, theme: Theme) => {
@@ -301,6 +335,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
     const screenWidth = useWindowDimensions().width;
 
     const hasText = props.value.trim().length > 0;
+    const hasAttachments = (props.attachments?.length || 0) > 0;
 
     // Check if this is a Codex or Gemini session
     // Use metadata.flavor for existing sessions, agentType prop for new sessions
@@ -941,6 +976,30 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
 
                 {/* Box 2: Action Area (Input + Send) */}
                 <View style={styles.unifiedPanel}>
+                    {hasAttachments && (
+                        <View style={styles.attachmentStrip}>
+                            {props.attachments!.map((attachment) => (
+                                <View key={attachment.id} style={styles.attachmentPreview}>
+                                    <RNImage
+                                        source={{ uri: toImageDataUri(attachment) }}
+                                        style={styles.attachmentImage}
+                                    />
+                                    {props.onAttachmentRemove && (
+                                        <Pressable
+                                            onPress={() => {
+                                                hapticsLight();
+                                                props.onAttachmentRemove?.(attachment.id);
+                                            }}
+                                            style={styles.attachmentRemove}
+                                        >
+                                            <Ionicons name="close" size={12} color="#fff" />
+                                        </Pressable>
+                                    )}
+                                </View>
+                            ))}
+                        </View>
+                    )}
+
                     {/* Input field */}
                     <View style={[styles.inputContainer, props.minHeight ? { minHeight: props.minHeight } : undefined]}>
                         <MultiTextInput
@@ -981,6 +1040,33 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     >
                                         <Octicons
                                             name={'gear'}
+                                            size={16}
+                                            color={theme.colors.button.secondary.tint}
+                                        />
+                                    </Pressable>
+                                )}
+
+                                {/* Image attachment button */}
+                                {props.onAttachmentPick && (
+                                    <Pressable
+                                        onPress={() => {
+                                            hapticsLight();
+                                            props.onAttachmentPick?.();
+                                        }}
+                                        hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
+                                        style={(p) => ({
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            borderRadius: Platform.select({ default: 16, android: 20 }),
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 6,
+                                            justifyContent: 'center',
+                                            height: 32,
+                                            opacity: p.pressed ? 0.7 : 1,
+                                        })}
+                                    >
+                                        <Ionicons
+                                            name="image-outline"
                                             size={16}
                                             color={theme.colors.button.secondary.tint}
                                         />
@@ -1101,7 +1187,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                 <View
                                     style={[
                                         styles.sendButton,
-                                        (hasText || props.isSending || (props.onMicPress && !props.isMicActive))
+                                        (hasText || hasAttachments || props.isSending || (props.onMicPress && !props.isMicActive))
                                             ? styles.sendButtonActive
                                             : styles.sendButtonInactive
                                     ]}
@@ -1117,13 +1203,13 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         hitSlop={{ top: 5, bottom: 10, left: 0, right: 0 }}
                                         onPress={() => {
                                             hapticsLight();
-                                            if (hasText) {
+                                            if (hasText || hasAttachments) {
                                                 props.onSend();
                                             } else {
                                                 props.onMicPress?.();
                                             }
                                         }}
-                                        disabled={props.isSendDisabled || props.isSending || (!hasText && !props.onMicPress)}
+                                        disabled={props.isSendDisabled || props.isSending || (!hasText && !hasAttachments && !props.onMicPress)}
                                     >
                                         {props.isSending ? (
                                             <ActivityIndicator
