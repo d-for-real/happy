@@ -8,12 +8,24 @@ const {
     mockAxiosGet,
     mockAxiosPost,
     mockBackoff,
+    mockCreateBackoff,
     mockDelay
 } = vi.hoisted(() => ({
     mockIo: vi.fn(),
     mockAxiosGet: vi.fn(),
     mockAxiosPost: vi.fn(),
     mockBackoff: vi.fn(async <T>(callback: () => Promise<T>) => {
+        let lastError: unknown;
+        for (let i = 0; i < 20; i += 1) {
+            try {
+                return await callback();
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        throw lastError;
+    }),
+    mockCreateBackoff: vi.fn(() => async <T>(callback: () => Promise<T>) => {
         let lastError: unknown;
         for (let i = 0; i < 20; i += 1) {
             try {
@@ -65,6 +77,7 @@ vi.mock('@/modules/common/registerCommonHandlers', () => ({
 
 vi.mock('@/utils/time', () => ({
     backoff: mockBackoff,
+    createBackoff: mockCreateBackoff,
     delay: mockDelay
 }));
 
