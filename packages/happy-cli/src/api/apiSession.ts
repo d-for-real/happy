@@ -434,6 +434,25 @@ export class ApiSessionClient extends EventEmitter {
     }
 
     sendSessionProtocolMessage(envelope: SessionEnvelope) {
+        // Compatibility fallback for older mobile app builds:
+        // emit agent text/service as legacy codex messages so they render
+        // even when session-protocol envelopes are not supported by the client.
+        if (envelope.role === 'agent' && envelope.ev.t === 'text') {
+            this.sendCodexMessage({
+                type: envelope.ev.thinking ? 'reasoning' : 'message',
+                message: envelope.ev.text
+            });
+            return;
+        }
+
+        if (envelope.role === 'agent' && envelope.ev.t === 'service') {
+            this.sendCodexMessage({
+                type: 'message',
+                message: envelope.ev.text
+            });
+            return;
+        }
+
         if (envelope.role !== 'user') {
             this.enqueueSessionProtocolEnvelope(envelope);
             return;

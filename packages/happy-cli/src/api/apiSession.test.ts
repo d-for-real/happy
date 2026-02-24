@@ -368,7 +368,7 @@ describe('ApiSessionClient v3 messages API migration', () => {
         expect(typeof (sessionUser as any).content.data.time).toBe('number');
     });
 
-    it('sends session protocol messages through enqueueMessage with session envelope', async () => {
+    it('sends non-text session protocol messages through enqueueMessage with session envelope', async () => {
         const client = new ApiSessionClient('fake-token', session);
         mockAxiosPost.mockResolvedValueOnce({
             data: {
@@ -381,7 +381,14 @@ describe('ApiSessionClient v3 messages API migration', () => {
             time: 1000,
             role: 'agent' as const,
             turn: 'turn-1',
-            ev: { t: 'text' as const, text: 'hello from session protocol' }
+            ev: {
+                t: 'tool-call-start' as const,
+                call: 'call-1',
+                name: 'Bash',
+                title: 'Run command',
+                description: 'Run command',
+                args: {}
+            }
         };
         client.sendSessionProtocolMessage(envelope);
 
@@ -401,6 +408,50 @@ describe('ApiSessionClient v3 messages API migration', () => {
             content: {
                 type: 'session',
                 data: envelope,
+            },
+            meta: {
+                sentFrom: 'cli'
+            }
+        });
+    });
+
+    it('sends agent text session protocol messages as legacy codex messages for compatibility', async () => {
+        const client = new ApiSessionClient('fake-token', session);
+        mockAxiosPost.mockResolvedValueOnce({
+            data: {
+                messages: [{ id: 'msg-1', seq: 1, localId: 'local-1', createdAt: 1, updatedAt: 1 }]
+            }
+        });
+
+        client.sendSessionProtocolMessage({
+            id: 'env-agent-text-1',
+            time: 1003,
+            role: 'agent',
+            turn: 'turn-1',
+            ev: { t: 'text', text: 'hello fallback' }
+        });
+
+        await waitForCheck(() => {
+            expect(mockAxiosPost).toHaveBeenCalledTimes(1);
+        });
+
+        const payload = mockAxiosPost.mock.calls[0][1];
+        expect(payload.messages).toHaveLength(1);
+
+        const legacy = decrypt(
+            session.encryptionKey,
+            session.encryptionVariant,
+            decodeBase64(payload.messages[0].content)
+        );
+
+        expect(legacy).toMatchObject({
+            role: 'agent',
+            content: {
+                type: 'codex',
+                data: {
+                    type: 'message',
+                    message: 'hello fallback'
+                }
             },
             meta: {
                 sentFrom: 'cli'
