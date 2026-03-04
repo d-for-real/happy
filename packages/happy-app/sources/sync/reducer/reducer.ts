@@ -116,7 +116,7 @@ import { createTracer, traceMessages, TracerState } from "./reducerTracer";
 import { AgentState } from "../storageTypes";
 import { MessageMeta } from "../typesMessageMeta";
 import { parseMessageAsEvent } from "./messageToEvent";
-import { UserImageAttachment } from "../messageAttachments";
+import { UserAttachment } from "../messageAttachments";
 
 type ReducerMessage = {
     id: string;
@@ -124,7 +124,7 @@ type ReducerMessage = {
     createdAt: number;
     role: 'user' | 'agent';
     text: string | null;
-    attachments?: UserImageAttachment[];
+    attachments?: UserAttachment[];
     isThinking?: boolean;
     event: AgentEvent | null;
     tool: ToolCall | null;

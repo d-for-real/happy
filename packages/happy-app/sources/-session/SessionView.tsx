@@ -23,7 +23,14 @@ import { storage, useIsDataReady, useLocalSetting, useRealtimeStatus, useSession
 import { useSession } from '@/sync/storage';
 import { Session } from '@/sync/storageTypes';
 import { sync } from '@/sync/sync';
-import { MESSAGE_IMAGE_MAX_BYTES, MESSAGE_IMAGE_MAX_COUNT, MESSAGE_IMAGE_MAX_DIMENSION, MESSAGE_IMAGE_TOTAL_MAX_BYTES, UserImageAttachment, estimateBase64Bytes } from '@/sync/messageAttachments';
+import {
+    MESSAGE_ATTACHMENT_MAX_BYTES,
+    MESSAGE_ATTACHMENT_MAX_COUNT,
+    MESSAGE_ATTACHMENT_TOTAL_MAX_BYTES,
+    MESSAGE_IMAGE_MAX_DIMENSION,
+    UserAttachment,
+    estimateBase64Bytes,
+} from '@/sync/messageAttachments';
 import { t } from '@/text';
 import { tracking, trackMessageSent } from '@/track';
 import { isRunningOnMac } from '@/utils/platform';
@@ -33,6 +40,8 @@ import { isVersionSupported, MINIMUM_CLI_VERSION } from '@/utils/versionUtils';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { randomUUID } from 'expo-crypto';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
 import * as React from 'react';
@@ -168,7 +177,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     const isLandscape = useIsLandscape();
     const deviceType = useDeviceType();
     const [message, setMessage] = React.useState('');
-    const [attachments, setAttachments] = React.useState<UserImageAttachment[]>([]);
+    const [attachments, setAttachments] = React.useState<UserAttachment[]>([]);
     const realtimeStatus = useRealtimeStatus();
     const { messages, isLoaded } = useSessionMessages(sessionId);
     const acknowledgedCliVersions = useLocalSetting('acknowledgedCliVersions');
@@ -210,9 +219,13 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
     // Use draft hook for auto-saving message drafts
     const { clearDraft } = useDraft(sessionId, message, setMessage);
 
-    const handleAttachmentPick = React.useCallback(async () => {
-        if (attachments.length >= MESSAGE_IMAGE_MAX_COUNT) {
-            Modal.alert(t('common.error'), `You can attach up to ${MESSAGE_IMAGE_MAX_COUNT} images per message.`);
+    const getTotalAttachmentBytes = React.useCallback((items: UserAttachment[]) => {
+        return items.reduce((sum, item) => sum + (item.sizeBytes || estimateBase64Bytes(item.data)), 0);
+    }, []);
+
+    const handleImageAttachmentPick = React.useCallback(async () => {
+        if (attachments.length >= MESSAGE_ATTACHMENT_MAX_COUNT) {
+            Modal.alert(t('common.error'), `You can attach up to ${MESSAGE_ATTACHMENT_MAX_COUNT} files per message.`);
             return;
         }
 
@@ -223,7 +236,7 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 allowsMultipleSelection: true,
                 quality: 0.85,
                 exif: false,
-                selectionLimit: MESSAGE_IMAGE_MAX_COUNT - attachments.length,
+                selectionLimit: MESSAGE_ATTACHMENT_MAX_COUNT - attachments.length,
             });
 
             if (picked.canceled || picked.assets.length === 0) {
@@ -231,10 +244,10 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             }
 
             const next = [...attachments];
-            let totalBytes = next.reduce((sum, item) => sum + (item.sizeBytes || estimateBase64Bytes(item.data)), 0);
+            let totalBytes = getTotalAttachmentBytes(next);
 
             for (const asset of picked.assets) {
-                if (next.length >= MESSAGE_IMAGE_MAX_COUNT) {
+                if (next.length >= MESSAGE_ATTACHMENT_MAX_COUNT) {
                     break;
                 }
 
@@ -272,13 +285,13 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
                 }
 
                 const sizeBytes = estimateBase64Bytes(processed.base64);
-                if (sizeBytes > MESSAGE_IMAGE_MAX_BYTES) {
-                    Modal.alert(t('common.error'), `Each image must be under ${Math.round(MESSAGE_IMAGE_MAX_BYTES / (1024 * 1024))}MB.`);
+                if (sizeBytes > MESSAGE_ATTACHMENT_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Each attachment must be under ${Math.round(MESSAGE_ATTACHMENT_MAX_BYTES / (1024 * 1024))}MB.`);
                     continue;
                 }
 
-                if (totalBytes + sizeBytes > MESSAGE_IMAGE_TOTAL_MAX_BYTES) {
-                    Modal.alert(t('common.error'), `Total attachments must be under ${Math.round(MESSAGE_IMAGE_TOTAL_MAX_BYTES / (1024 * 1024))}MB.`);
+                if (totalBytes + sizeBytes > MESSAGE_ATTACHMENT_TOTAL_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Total attachments must be under ${Math.round(MESSAGE_ATTACHMENT_TOTAL_MAX_BYTES / (1024 * 1024))}MB.`);
                     break;
                 }
 
@@ -299,7 +312,76 @@ function SessionViewLoaded({ sessionId, session }: { sessionId: string, session:
             console.error('Failed to pick image attachments:', error);
             Modal.alert(t('common.error'), 'Failed to attach image.');
         }
-    }, [attachments]);
+    }, [attachments, getTotalAttachmentBytes]);
+
+    const handleFileAttachmentPick = React.useCallback(async () => {
+        if (attachments.length >= MESSAGE_ATTACHMENT_MAX_COUNT) {
+            Modal.alert(t('common.error'), `You can attach up to ${MESSAGE_ATTACHMENT_MAX_COUNT} files per message.`);
+            return;
+        }
+
+        try {
+            const picked = await DocumentPicker.getDocumentAsync({
+                type: '*/*',
+                multiple: true,
+                copyToCacheDirectory: true,
+            });
+
+            if (picked.canceled || picked.assets.length === 0) {
+                return;
+            }
+
+            const next = [...attachments];
+            let totalBytes = getTotalAttachmentBytes(next);
+
+            for (const asset of picked.assets) {
+                if (next.length >= MESSAGE_ATTACHMENT_MAX_COUNT) {
+                    break;
+                }
+
+                const base64 = await FileSystem.readAsStringAsync(asset.uri, {
+                    encoding: 'base64',
+                });
+                const sizeBytes = asset.size || estimateBase64Bytes(base64);
+
+                if (sizeBytes > MESSAGE_ATTACHMENT_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Each attachment must be under ${Math.round(MESSAGE_ATTACHMENT_MAX_BYTES / (1024 * 1024))}MB.`);
+                    continue;
+                }
+
+                if (totalBytes + sizeBytes > MESSAGE_ATTACHMENT_TOTAL_MAX_BYTES) {
+                    Modal.alert(t('common.error'), `Total attachments must be under ${Math.round(MESSAGE_ATTACHMENT_TOTAL_MAX_BYTES / (1024 * 1024))}MB.`);
+                    break;
+                }
+
+                next.push({
+                    id: randomUUID(),
+                    mimeType: asset.mimeType || 'application/octet-stream',
+                    data: base64,
+                    name: asset.name || undefined,
+                    sizeBytes,
+                });
+                totalBytes += sizeBytes;
+            }
+
+            setAttachments(next);
+        } catch (error) {
+            console.error('Failed to pick file attachments:', error);
+            Modal.alert(t('common.error'), 'Failed to attach file.');
+        }
+    }, [attachments, getTotalAttachmentBytes]);
+
+    const handleAttachmentPick = React.useCallback(() => {
+        Modal.alert(
+            'Attach',
+            'Choose what to attach',
+            [
+                { text: 'Image', onPress: () => { void handleImageAttachmentPick(); } },
+                { text: 'File', onPress: () => { void handleFileAttachmentPick(); } },
+                { text: t('common.cancel'), style: 'cancel' },
+            ]
+        );
+    }, [handleFileAttachmentPick, handleImageAttachmentPick]);
 
     const handleAttachmentRemove = React.useCallback((id: string) => {
         setAttachments((previous) => previous.filter((item) => item.id !== id));

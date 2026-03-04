@@ -2,7 +2,7 @@ import { z } from 'zod'
 import type { Update, UpdateMachineBody } from '@slopus/happy-wire';
 import { UsageSchema } from '@/claude/types'
 import type { SandboxConfig } from '@/persistence'
-import { UserImageAttachmentSchema } from './userAttachments'
+import { UserAttachmentSchema } from './userAttachments'
 
 export {
   SessionMessageContentSchema,
@@ -210,7 +210,7 @@ export const UserMessageSchema = z.object({
   content: z.object({
     type: z.literal('text'),
     text: z.string(),
-    attachments: z.array(UserImageAttachmentSchema).optional()
+    attachments: z.array(UserAttachmentSchema).optional()
   }),
   localKey: z.string().optional(), // Mobile messages include this
   meta: MessageMetaSchema.optional()

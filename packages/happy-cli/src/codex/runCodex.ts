@@ -206,9 +206,9 @@ export async function runCodex(opts: {
                     sessionTag
                 });
                 prompt = appendCodexImageAttachmentFiles(message.content.text, files);
-                logger.debug(`[Codex] Queued user message with ${files.length} image attachment(s)`);
+                logger.debug(`[Codex] Queued user message with ${files.length} attachment(s)`);
             } catch (error) {
-                logger.warn('[Codex] Failed to materialize image attachments. Falling back to text-only prompt.', error);
+                logger.warn('[Codex] Failed to materialize attachments. Falling back to text-only prompt.', error);
                 prompt = message.content.text;
             }
             messageQueue.pushIsolate(prompt, enhancedMode);

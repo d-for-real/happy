@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { basename, relative, resolve } from 'node:path';
-import type { UserImageAttachment } from '@/api/userAttachments';
+import type { UserAttachment } from '@/api/userAttachments';
 
 export interface CodexImageAttachmentFile {
     id: string;
@@ -49,7 +49,7 @@ export function getCodexAttachmentSessionDir(workspaceRoot: string, sessionTag: 
 }
 
 export function materializeCodexImageAttachments(opts: {
-    attachments?: UserImageAttachment[];
+    attachments?: UserAttachment[];
     workspaceRoot: string;
     sessionTag: string;
 }): CodexImageAttachmentFile[] {
@@ -65,7 +65,7 @@ export function materializeCodexImageAttachments(opts: {
 
     for (let i = 0; i < attachments.length; i++) {
         const attachment = attachments[i];
-        const fallbackLabel = `image-${i + 1}`;
+        const fallbackLabel = `attachment-${i + 1}`;
         const safeBaseName = sanitizeBaseName(attachment.name, fallbackLabel);
         const safeId = sanitizeId(attachment.id);
         const extension = extensionForMimeType(attachment.mimeType);
@@ -99,11 +99,12 @@ export function appendCodexImageAttachmentFiles(text: string, files: CodexImageA
         lines.push(trimmed, '');
     }
 
-    lines.push('User attached image files:');
+    lines.push('User attached files:');
     for (const file of files) {
         lines.push(`- ${file.label}: ${file.relativePath}`);
     }
-    lines.push('Treat these as user-provided images and inspect them directly from disk before answering.');
+    lines.push('Treat these as user-provided files and inspect them directly from disk before answering.');
+    lines.push('If any attached file format is unsupported, explicitly say so.');
 
     return lines.join('\n');
 }

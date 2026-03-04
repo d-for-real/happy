@@ -30,7 +30,7 @@ import { stopCaffeinate } from '@/utils/caffeinate';
 import { connectionState } from '@/utils/serverConnectionErrors';
 import { setupOfflineReconnection } from '@/utils/setupOfflineReconnection';
 import type { ApiSessionClient } from '@/api/apiSession';
-import { appendImageAttachmentsAsMarkdown } from '@/api/userAttachments';
+import { appendAttachmentsAsMarkdown } from '@/api/userAttachments';
 
 import { createGeminiBackend } from '@/agent/factories/gemini';
 import type { AgentBackend, AgentMessage } from '@/agent';
@@ -264,7 +264,7 @@ export async function runGemini(opts: {
     // Build the full prompt with appendSystemPrompt if provided
     // Only include system prompt for the first message to avoid forcing tool usage on every message
     const originalUserMessage = message.content.text;
-    const messageWithAttachments = appendImageAttachmentsAsMarkdown(originalUserMessage, message.content.attachments);
+    const messageWithAttachments = appendAttachmentsAsMarkdown(originalUserMessage, message.content.attachments);
     let fullPrompt = messageWithAttachments;
     if (isFirstMessage && message.meta?.appendSystemPrompt) {
       // Prepend system prompt to user message only for first message

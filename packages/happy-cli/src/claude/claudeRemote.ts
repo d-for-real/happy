@@ -12,16 +12,17 @@ import { awaitFileExist } from "@/modules/watcher/awaitFileExist";
 import { systemPrompt } from "./utils/systemPrompt";
 import { PermissionResult } from "./sdk/types";
 import type { JsRuntime } from "./runClaude";
-import { decodeClaudePromptWithAttachments, UserImageAttachment } from "@/api/userAttachments";
+import { decodeClaudePromptWithAttachments, isImageAttachment, UserAttachment } from "@/api/userAttachments";
 
 type SDKUserContentBlock = Extract<SDKUserMessage['message']['content'], Array<any>>[number];
 
-function buildClaudeUserContent(message: string, attachments: UserImageAttachment[]): SDKUserMessage['message']['content'] {
+function buildClaudeUserContent(message: string, attachments: UserAttachment[]): SDKUserMessage['message']['content'] {
     if (attachments.length === 0) {
         return message;
     }
 
     const blocks: SDKUserContentBlock[] = [];
+    const nonImageAttachments: UserAttachment[] = [];
     const trimmed = message.trim();
     if (trimmed.length > 0) {
         blocks.push({
@@ -31,11 +32,15 @@ function buildClaudeUserContent(message: string, attachments: UserImageAttachmen
     } else {
         blocks.push({
             type: 'text',
-            text: 'Please analyze the attached image(s).'
+            text: 'Please analyze the attached file(s).'
         });
     }
 
     for (const attachment of attachments) {
+        if (!isImageAttachment(attachment)) {
+            nonImageAttachments.push(attachment);
+            continue;
+        }
         blocks.push({
             type: 'image',
             source: {
@@ -43,6 +48,20 @@ function buildClaudeUserContent(message: string, attachments: UserImageAttachmen
                 media_type: attachment.mimeType,
                 data: attachment.data
             }
+        });
+    }
+
+    if (nonImageAttachments.length > 0) {
+        const lines: string[] = ['Attached non-image files:'];
+        for (const attachment of nonImageAttachments) {
+            const name = attachment.name || attachment.id;
+            lines.push(`- ${name} (${attachment.mimeType})`);
+            lines.push(`data:${attachment.mimeType};base64,${attachment.data}`);
+        }
+        lines.push('If any attached file format is unsupported, explicitly say so.');
+        blocks.push({
+            type: 'text',
+            text: lines.join('\n')
         });
     }
 

@@ -1,6 +1,6 @@
 import { AgentEvent } from "./typesRaw";
 import { MessageMeta } from "./typesMessageMeta";
-import { UserImageAttachment } from "./messageAttachments";
+import { UserAttachment } from "./messageAttachments";
 
 export type ToolCall = {
     name: string;
@@ -29,7 +29,7 @@ export type UserTextMessage = {
     localId: string | null;
     createdAt: number;
     text: string;
-    attachments?: UserImageAttachment[];
+    attachments?: UserAttachment[];
     displayText?: string; // Optional text to display in UI instead of actual text
     meta?: MessageMeta;
 }

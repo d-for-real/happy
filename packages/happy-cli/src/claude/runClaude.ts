@@ -388,7 +388,7 @@ export async function runClaude(credentials: Credentials, options: StartOptions 
 
         if (message.content.attachments && message.content.attachments.length > 0) {
             messageQueue.pushIsolate(queuedMessage, enhancedMode);
-            logger.debug(`[loop] Queued user message with ${message.content.attachments.length} image attachment(s)`);
+            logger.debug(`[loop] Queued user message with ${message.content.attachments.length} attachment(s)`);
         } else {
             messageQueue.push(queuedMessage, enhancedMode);
         }

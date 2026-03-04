@@ -41,7 +41,7 @@ import { fetchFeed } from './apiFeed';
 import { FeedItem } from './feedTypes';
 import { UserProfile } from './friendTypes';
 import { resolveMessageModeMeta } from './messageMeta';
-import { UserImageAttachment } from './messageAttachments';
+import { UserAttachment } from './messageAttachments';
 
 type V3GetSessionMessagesResponse = {
     messages: ApiMessage[];
@@ -451,7 +451,7 @@ class Sync {
         this.backgroundSendStartedAt = null;
     }
 
-    async sendMessage(sessionId: string, text: string, options?: { displayText?: string; attachments?: UserImageAttachment[] }) {
+    async sendMessage(sessionId: string, text: string, options?: { displayText?: string; attachments?: UserAttachment[] }) {
 
         // Get encryption
         const encryption = this.encryption.getSessionEncryption(sessionId);

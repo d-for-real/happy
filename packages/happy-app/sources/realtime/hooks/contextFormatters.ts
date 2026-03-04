@@ -42,7 +42,7 @@ export function formatMessage(message: Message): string | null {
     } else if (message.kind === 'user-text') {
         lines.push(`User sent message: \n<text>${message.text}</text>`);
         if (message.attachments && message.attachments.length > 0) {
-            lines.push(`User attached ${message.attachments.length} image(s).`);
+            lines.push(`User attached ${message.attachments.length} file(s).`);
         }
     } else if (message.kind === 'tool-call' && !VOICE_CONFIG.DISABLE_TOOL_CALLS) {
         const toolDescription = message.tool.description ? ` - ${message.tool.description}` : '';

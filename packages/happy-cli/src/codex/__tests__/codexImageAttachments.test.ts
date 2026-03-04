@@ -20,7 +20,7 @@ function createWorkspaceRoot(): string {
 }
 
 describe('codexImageAttachments', () => {
-    it('materializes base64 image attachments into workspace files', () => {
+    it('materializes base64 attachments into workspace files', () => {
         const workspaceRoot = createWorkspaceRoot();
         const attachments = [{
             id: 'abc-123',
@@ -52,10 +52,11 @@ describe('codexImageAttachments', () => {
             }
         ]);
 
-        expect(prompt).toContain('User attached image files:');
+        expect(prompt).toContain('User attached files:');
         expect(prompt).toContain('.happy/codex-attachments/s/sketch.png');
         expect(prompt).not.toContain('base64,');
         expect(prompt).toContain('inspect them directly from disk');
+        expect(prompt).toContain('unsupported');
     });
 
     it('computes deterministic attachment session directory path', () => {

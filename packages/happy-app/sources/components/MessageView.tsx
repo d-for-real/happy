@@ -1,5 +1,6 @@
 import * as React from "react";
 import { View, Text, Image as RNImage } from "react-native";
+import { Ionicons } from '@expo/vector-icons';
 import { StyleSheet } from 'react-native-unistyles';
 import { MarkdownView } from "./markdown/MarkdownView";
 import { t } from '@/text';
@@ -11,7 +12,7 @@ import { AgentEvent } from "@/sync/typesRaw";
 import { sync } from '@/sync/sync';
 import { Option } from './markdown/MarkdownView';
 import { useSetting } from "@/sync/storage";
-import { toImageDataUri } from "@/sync/messageAttachments";
+import { isImageAttachment, toAttachmentDataUri } from "@/sync/messageAttachments";
 
 export const MessageView = (props: {
   message: Message;
@@ -80,12 +81,21 @@ function UserTextBlock(props: {
         {props.message.attachments && props.message.attachments.length > 0 && (
           <View style={styles.userAttachmentsContainer}>
             {props.message.attachments.map((attachment) => (
-              <RNImage
-                key={attachment.id}
-                source={{ uri: toImageDataUri(attachment) }}
-                style={styles.userAttachmentImage}
-                resizeMode="cover"
-              />
+              isImageAttachment(attachment) ? (
+                <RNImage
+                  key={attachment.id}
+                  source={{ uri: toAttachmentDataUri(attachment) }}
+                  style={styles.userAttachmentImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View key={attachment.id} style={styles.userAttachmentFile}>
+                  <Ionicons name="document-attach-outline" size={16} style={styles.userAttachmentFileIcon} />
+                  <Text numberOfLines={1} style={styles.userAttachmentFileText}>
+                    {attachment.name || 'attachment'}
+                  </Text>
+                </View>
+              )
             ))}
           </View>
         )}
@@ -221,6 +231,25 @@ const styles = StyleSheet.create((theme) => ({
     height: 140,
     borderRadius: 10,
     backgroundColor: theme.colors.surfacePressed,
+  },
+  userAttachmentFile: {
+    maxWidth: '100%',
+    minHeight: 40,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: theme.colors.surfacePressed,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  userAttachmentFileIcon: {
+    color: theme.colors.textSecondary,
+  },
+  userAttachmentFileText: {
+    flexShrink: 1,
+    color: theme.colors.text,
+    fontSize: 13,
   },
   agentMessageContainer: {
     marginHorizontal: 16,

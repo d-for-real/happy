@@ -24,7 +24,7 @@ import { t } from '@/text';
 import { Metadata } from '@/sync/storageTypes';
 import { AIBackendProfile, getProfileEnvironmentVariables, validateProfileForAgent } from '@/sync/settings';
 import { getBuiltInProfile } from '@/sync/profileUtils';
-import { UserImageAttachment, toImageDataUri } from '@/sync/messageAttachments';
+import { UserAttachment, isImageAttachment, toAttachmentDataUri } from '@/sync/messageAttachments';
 
 interface AgentInputProps {
     value: string;
@@ -77,7 +77,7 @@ interface AgentInputProps {
     minHeight?: number;
     profileId?: string | null;
     onProfileClick?: () => void;
-    attachments?: UserImageAttachment[];
+    attachments?: UserAttachment[];
     onAttachmentPick?: () => void;
     onAttachmentRemove?: (id: string) => void;
 }
@@ -300,6 +300,22 @@ const stylesheet = StyleSheet.create((theme, runtime) => ({
     attachmentImage: {
         width: '100%',
         height: '100%',
+    },
+    fileAttachmentPreview: {
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 6,
+        gap: 4,
+        backgroundColor: theme.colors.surfacePressed,
+    },
+    fileAttachmentName: {
+        fontSize: 10,
+        textAlign: 'center',
+        color: theme.colors.textSecondary,
+        lineHeight: 12,
+        ...Typography.default('regular'),
     },
     attachmentRemove: {
         position: 'absolute',
@@ -980,10 +996,23 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                         <View style={styles.attachmentStrip}>
                             {props.attachments!.map((attachment) => (
                                 <View key={attachment.id} style={styles.attachmentPreview}>
-                                    <RNImage
-                                        source={{ uri: toImageDataUri(attachment) }}
-                                        style={styles.attachmentImage}
-                                    />
+                                    {isImageAttachment(attachment) ? (
+                                        <RNImage
+                                            source={{ uri: toAttachmentDataUri(attachment) }}
+                                            style={styles.attachmentImage}
+                                        />
+                                    ) : (
+                                        <View style={styles.fileAttachmentPreview}>
+                                            <Ionicons
+                                                name="document-attach-outline"
+                                                size={18}
+                                                color={theme.colors.textSecondary}
+                                            />
+                                            <Text numberOfLines={2} style={styles.fileAttachmentName}>
+                                                {attachment.name || 'attachment'}
+                                            </Text>
+                                        </View>
+                                    )}
                                     {props.onAttachmentRemove && (
                                         <Pressable
                                             onPress={() => {
@@ -1046,7 +1075,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                     </Pressable>
                                 )}
 
-                                {/* Image attachment button */}
+                                {/* Attachment button */}
                                 {props.onAttachmentPick && (
                                     <Pressable
                                         onPress={() => {
@@ -1066,7 +1095,7 @@ export const AgentInput = React.memo(React.forwardRef<MultiTextInputHandle, Agen
                                         })}
                                     >
                                         <Ionicons
-                                            name="image-outline"
+                                            name="attach-outline"
                                             size={16}
                                             color={theme.colors.button.secondary.tint}
                                         />
