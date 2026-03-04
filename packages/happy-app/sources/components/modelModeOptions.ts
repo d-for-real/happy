@@ -122,6 +122,11 @@ export function getAvailableModels(
     if (metadataModels.length > 0) {
         return metadataModels;
     }
+    // For Codex, avoid showing stale hardcoded model lists.
+    // Only surface models explicitly reported by the running backend.
+    if (flavor === 'codex') {
+        return [];
+    }
     return getHardcodedModelModes(flavor, translate);
 }
 
@@ -164,7 +169,7 @@ export function resolveCurrentOption<T extends ModeOption>(
 
 export function getDefaultModelKey(flavor: AgentFlavor): string {
     if (flavor === 'codex') {
-        return 'gpt-5-codex-high';
+        return 'default';
     }
     if (flavor === 'gemini') {
         return 'gemini-2.5-pro';

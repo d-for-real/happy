@@ -53,6 +53,23 @@ describe('modelModeOptions', () => {
         ]);
     });
 
+    it('does not use hardcoded codex model fallbacks without metadata', () => {
+        const models = getAvailableModels('codex', null as any, translate);
+        expect(models).toEqual([]);
+    });
+
+    it('uses metadata-provided codex model options when available', () => {
+        const models = getAvailableModels('codex', {
+            models: [
+                { code: 'codex-actual-1', value: 'Codex Actual 1', description: 'Live metadata' },
+            ],
+        } as any, translate);
+
+        expect(models).toEqual([
+            { key: 'codex-actual-1', name: 'Codex Actual 1', description: 'Live metadata' },
+        ]);
+    });
+
     it('keeps codex permission modes hardcoded even when metadata modes exist', () => {
         const modes = getAvailablePermissionModes('codex', {
             operatingModes: [{ code: 'metadata-only', value: 'Metadata Mode', description: null }],

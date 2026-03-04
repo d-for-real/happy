@@ -38,6 +38,7 @@ import { formatPathRelativeToHome } from '@/utils/sessionUtils';
 import { resolveAbsolutePath } from '@/utils/pathUtils';
 import { MultiTextInput } from '@/components/MultiTextInput';
 import { isMachineOnline } from '@/utils/machineUtils';
+import type { Metadata } from '@/sync/storageTypes';
 import { StatusDot } from '@/components/StatusDot';
 import { SearchableListSelector, SelectorConfig } from '@/components/SearchableListSelector';
 import { clearNewSessionDraft, loadNewSessionDraft, saveNewSessionDraft } from '@/sync/persistence';
@@ -356,25 +357,6 @@ function NewSessionWizard() {
     const availableModes = React.useMemo(() => (
         getAvailablePermissionModes(agentType, null, t)
     ), [agentType]);
-    const availableModels = React.useMemo(() => (
-        getAvailableModels(agentType, null, t)
-    ), [agentType]);
-
-    const [permissionMode, setPermissionMode] = React.useState<PermissionMode>(() => {
-        const modes = getAvailablePermissionModes(agentType, null, t);
-        return resolveCurrentOption(modes, [
-            lastUsedPermissionMode,
-            getDefaultPermissionModeKey(agentType),
-        ]) ?? modes[0];
-    });
-
-    const [modelMode, setModelMode] = React.useState<ModelMode | null>(() => {
-        const models = getAvailableModels(agentType, null, t);
-        return resolveCurrentOption(models, [
-            lastUsedModelMode,
-            getDefaultModelKey(agentType),
-        ]);
-    });
 
     // Session details state
     const [selectedMachineId, setSelectedMachineId] = React.useState<string | null>(() => {
@@ -389,6 +371,51 @@ function NewSessionWizard() {
             return machines[0].id;
         }
         return null;
+    });
+    const metadataForSelectedAgent = React.useMemo(() => {
+        let latestMetadata: Metadata | null = null;
+        let latestUpdatedAt = -Infinity;
+
+        sessions?.forEach((item) => {
+            if (typeof item === 'string') {
+                return;
+            }
+
+            const session = item;
+            if (!session.metadata || session.metadata.flavor !== agentType) {
+                return;
+            }
+            if (selectedMachineId && session.metadata.machineId !== selectedMachineId) {
+                return;
+            }
+
+            const updatedAt = session.updatedAt || session.createdAt || 0;
+            if (updatedAt > latestUpdatedAt) {
+                latestUpdatedAt = updatedAt;
+                latestMetadata = session.metadata;
+            }
+        });
+
+        return latestMetadata;
+    }, [agentType, selectedMachineId, sessions]);
+    const availableModels = React.useMemo(() => (
+        getAvailableModels(agentType, metadataForSelectedAgent, t)
+    ), [agentType, metadataForSelectedAgent]);
+
+    const [permissionMode, setPermissionMode] = React.useState<PermissionMode>(() => {
+        const modes = getAvailablePermissionModes(agentType, null, t);
+        return resolveCurrentOption(modes, [
+            lastUsedPermissionMode,
+            getDefaultPermissionModeKey(agentType),
+        ]) ?? modes[0];
+    });
+
+    const [modelMode, setModelMode] = React.useState<ModelMode | null>(() => {
+        const models = getAvailableModels(agentType, metadataForSelectedAgent, t);
+        return resolveCurrentOption(models, [
+            lastUsedModelMode,
+            getDefaultModelKey(agentType),
+        ]);
     });
 
     const handlePermissionModeChange = React.useCallback((mode: PermissionMode) => {
