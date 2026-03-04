@@ -3,7 +3,7 @@ import { Settings, settingsDefaults, settingsParse, SettingsSchema } from './set
 import { LocalSettings, localSettingsDefaults, localSettingsParse } from './localSettings';
 import { Purchases, purchasesDefaults, purchasesParse } from './purchases';
 import { Profile, profileDefaults, profileParse } from './profile';
-import type { PermissionModeKey } from '@/components/PermissionModeSelector';
+import type { ModelModeKey, PermissionModeKey } from '@/components/PermissionModeSelector';
 
 const mmkv = new MMKV();
 const NEW_SESSION_DRAFT_KEY = 'new-session-draft-v1';
@@ -17,6 +17,7 @@ export interface NewSessionDraft {
     selectedPath: string | null;
     agentType: NewSessionAgentType;
     permissionMode: PermissionModeKey;
+    modelMode: ModelModeKey | null;
     sessionType: NewSessionSessionType;
     updatedAt: number;
 }
@@ -145,6 +146,9 @@ export function loadNewSessionDraft(): NewSessionDraft | null {
         const permissionMode: PermissionModeKey = typeof parsed.permissionMode === 'string'
             ? parsed.permissionMode
             : 'default';
+        const modelMode: ModelModeKey | null = typeof parsed.modelMode === 'string'
+            ? parsed.modelMode
+            : null;
         const sessionType: NewSessionSessionType = parsed.sessionType === 'worktree' ? 'worktree' : 'simple';
         const updatedAt = typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now();
 
@@ -154,6 +158,7 @@ export function loadNewSessionDraft(): NewSessionDraft | null {
             selectedPath,
             agentType,
             permissionMode,
+            modelMode,
             sessionType,
             updatedAt,
         };
@@ -186,6 +191,23 @@ export function loadSessionPermissionModes(): Record<string, string> {
 
 export function saveSessionPermissionModes(modes: Record<string, string>) {
     mmkv.set('session-permission-modes', JSON.stringify(modes));
+}
+
+export function loadSessionModelModes(): Record<string, string> {
+    const modes = mmkv.getString('session-model-modes');
+    if (modes) {
+        try {
+            return JSON.parse(modes);
+        } catch (e) {
+            console.error('Failed to parse session model modes', e);
+            return {};
+        }
+    }
+    return {};
+}
+
+export function saveSessionModelModes(modes: Record<string, string>) {
+    mmkv.set('session-model-modes', JSON.stringify(modes));
 }
 
 export function loadProfile(): Profile {

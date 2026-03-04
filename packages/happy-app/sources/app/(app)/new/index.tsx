@@ -23,6 +23,7 @@ import type { PermissionMode, ModelMode } from '@/components/PermissionModeSelec
 import {
     getAvailableModels,
     getAvailablePermissionModes,
+    getCodexModelModes,
     getDefaultModelKey,
     getDefaultPermissionModeKey,
     resolveCurrentOption,
@@ -399,12 +400,24 @@ function NewSessionWizard() {
         return latestMetadata;
     }, [agentType, selectedMachineId, sessions]);
     const availableModels = React.useMemo(() => (
-        getAvailableModels(agentType, metadataForSelectedAgent, t)
+        (() => {
+            const models = getAvailableModels(agentType, metadataForSelectedAgent, t);
+            if (models.length > 0) {
+                return models;
+            }
+            // New-session fallback: allow model preselection before first Codex
+            // metadata sync is available.
+            if (agentType === 'codex') {
+                return getCodexModelModes(t);
+            }
+            return models;
+        })()
     ), [agentType, metadataForSelectedAgent]);
 
     const [permissionMode, setPermissionMode] = React.useState<PermissionMode>(() => {
         const modes = getAvailablePermissionModes(agentType, null, t);
         return resolveCurrentOption(modes, [
+            persistedDraft?.permissionMode,
             lastUsedPermissionMode,
             getDefaultPermissionModeKey(agentType),
         ]) ?? modes[0];
@@ -412,7 +425,20 @@ function NewSessionWizard() {
 
     const [modelMode, setModelMode] = React.useState<ModelMode | null>(() => {
         const models = getAvailableModels(agentType, metadataForSelectedAgent, t);
+        const fallbackModels = (models.length > 0 || agentType !== 'codex')
+            ? models
+            : getCodexModelModes(t);
+        const draftModelMode = persistedDraft?.agentType === agentType
+            ? persistedDraft.modelMode
+            : null;
         return resolveCurrentOption(models, [
+            draftModelMode,
+            persistedDraft?.modelMode,
+            lastUsedModelMode,
+            getDefaultModelKey(agentType),
+        ]) ?? resolveCurrentOption(fallbackModels, [
+            draftModelMode,
+            persistedDraft?.modelMode,
             lastUsedModelMode,
             getDefaultModelKey(agentType),
         ]);
@@ -1143,6 +1169,7 @@ function NewSessionWizard() {
                 selectedPath,
                 agentType,
                 permissionMode: permissionMode.key,
+                modelMode: modelMode?.key ?? null,
                 sessionType,
                 updatedAt: Date.now(),
             });
@@ -1152,7 +1179,7 @@ function NewSessionWizard() {
                 clearTimeout(draftSaveTimerRef.current);
             }
         };
-    }, [sessionPrompt, selectedMachineId, selectedPath, agentType, permissionMode.key, sessionType]);
+    }, [sessionPrompt, selectedMachineId, selectedPath, agentType, permissionMode.key, modelMode?.key, sessionType]);
 
     // ========================================================================
     // CONTROL A: Simpler AgentInput-driven layout (flag OFF)
@@ -1899,7 +1926,70 @@ function NewSessionWizard() {
                                 })}
                             </ItemGroup>
 
-                            {/* Section 5: Advanced Options (Collapsible) */}
+                            {/* Section 5: Model */}
+                            <View>
+                                <Text style={styles.sectionHeader}>5. Model</Text>
+                            </View>
+                            <ItemGroup title="">
+                                {availableModels.length > 0 ? availableModels.map((option, index, array) => {
+                                    const key = option.key.toLowerCase();
+                                    const modelIcon =
+                                        key.includes('high') || key.includes('pro') || key.includes('opus')
+                                            ? 'diamond-outline'
+                                            : key.includes('medium') || key.includes('sonnet') || key.includes('flash')
+                                                ? 'cube-outline'
+                                                : 'speedometer-outline';
+                                    const isSelected = modelMode?.key === option.key;
+
+                                    return (
+                                        <Item
+                                            key={option.key}
+                                            title={option.name}
+                                            subtitle={option.description ?? option.key}
+                                            leftElement={
+                                                <Ionicons
+                                                    name={modelIcon as any}
+                                                    size={24}
+                                                    color={isSelected ? theme.colors.button.primary.tint : theme.colors.textSecondary}
+                                                />
+                                            }
+                                            rightElement={isSelected ? (
+                                                <Ionicons
+                                                    name="checkmark-circle"
+                                                    size={20}
+                                                    color={theme.colors.button.primary.tint}
+                                                />
+                                            ) : null}
+                                            onPress={() => handleModelModeChange(option)}
+                                            showChevron={false}
+                                            selected={isSelected}
+                                            showDivider={index < array.length - 1}
+                                            style={isSelected ? {
+                                                borderWidth: 2,
+                                                borderColor: theme.colors.button.primary.tint,
+                                                borderRadius: Platform.select({ ios: 10, default: 16 }),
+                                            } : undefined}
+                                        />
+                                    );
+                                }) : (
+                                    <Item
+                                        title="No models available yet"
+                                        subtitle="Start one session first so this machine can report its model list."
+                                        leftElement={
+                                            <Ionicons
+                                                name="information-circle-outline"
+                                                size={24}
+                                                color={theme.colors.textSecondary}
+                                            />
+                                        }
+                                        showChevron={false}
+                                        showDivider={false}
+                                        onPress={undefined}
+                                    />
+                                )}
+                            </ItemGroup>
+
+                            {/* Section 6: Advanced Options (Collapsible) */}
                             {experimentsEnabled && (
                                 <>
                                     <Pressable
