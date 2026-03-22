@@ -30,15 +30,10 @@ describe('modelModeOptions', () => {
     it('builds codex model fallbacks with translated labels', () => {
         const models = getCodexModelModes(translate);
         expect(models.map((model) => model.key)).toEqual([
-            'gpt-5-codex-high',
-            'gpt-5-codex-medium',
-            'gpt-5-codex-low',
-            'gpt-5-minimal',
-            'gpt-5-low',
-            'gpt-5-medium',
-            'gpt-5-high',
+            'gpt-5.4',
+            'gpt-5.4-mini',
         ]);
-        expect(models[0].name).toBe('tr:agentInput.codexModel.gpt5CodexHigh');
+        expect(models[0].name).toBe('GPT-5.4');
     });
 
     it('prefers metadata models over hardcoded fallbacks', () => {

@@ -77,15 +77,10 @@ export function getClaudeModelModes(): ModelMode[] {
     ];
 }
 
-export function getCodexModelModes(translate: Translate): ModelMode[] {
+export function getCodexModelModes(_translate: Translate): ModelMode[] {
     return [
-        { key: 'gpt-5-codex-high', name: translate('agentInput.codexModel.gpt5CodexHigh'), description: null },
-        { key: 'gpt-5-codex-medium', name: translate('agentInput.codexModel.gpt5CodexMedium'), description: null },
-        { key: 'gpt-5-codex-low', name: translate('agentInput.codexModel.gpt5CodexLow'), description: null },
-        { key: 'gpt-5-minimal', name: translate('agentInput.codexModel.gpt5Minimal'), description: null },
-        { key: 'gpt-5-low', name: translate('agentInput.codexModel.gpt5Low'), description: null },
-        { key: 'gpt-5-medium', name: translate('agentInput.codexModel.gpt5Medium'), description: null },
-        { key: 'gpt-5-high', name: translate('agentInput.codexModel.gpt5High'), description: null },
+        { key: 'gpt-5.4', name: 'GPT-5.4', description: 'Latest frontier coding model' },
+        { key: 'gpt-5.4-mini', name: 'GPT-5.4 Mini', description: 'Smaller, faster coding model' },
     ];
 }
 
@@ -169,7 +164,7 @@ export function resolveCurrentOption<T extends ModeOption>(
 
 export function getDefaultModelKey(flavor: AgentFlavor): string {
     if (flavor === 'codex') {
-        return 'default';
+        return 'gpt-5.4';
     }
     if (flavor === 'gemini') {
         return 'gemini-2.5-pro';
